@@ -12,10 +12,8 @@ from starter2 import *
 from scipy.ndimage import gaussian_filter
 
 def make_xyz(cube):
-    """presently hard coded to project along Y"""
     N = cube.shape[0]
     dx_v = 1./N
-    center = nar([0.5,-0.2,0.5])
     xyz = np.stack(np.mgrid[0:1:dx_v,0:1:dx_v,0:1:dx_v])
     return xyz, dx_v
 
@@ -127,8 +125,6 @@ class s1p():
                     H[mask_ind[Hi]] += cube_flat[Ii]
                 #The mask of found pixels.
                 F[index[mask]]=0
-        not_ok = np.isnan(F)
-        #H[not_ok]=F[not_ok]
         H.shape = Nphi_bins,Ntheta_bins
         F.shape = Nphi_bins,Ntheta_bins
 

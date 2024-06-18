@@ -12,10 +12,12 @@ from scipy.ndimage import gaussian_filter
 N = 128
 Nbins = N*4
 cube = proj.make_cube(N)
-if 'ppp' not in dir():
-    ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True,Nbins=1024)
-    #H = gaussian_filter(ppp.H,2)
-    H = ppp.H
+
+#ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True,Nbins=1024)
+ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True, Nbins=256)
+H = gaussian_filter(ppp.H,2)
+#H = ppp.H
+
 s1p.plot_image(ppp.coordPhi, ppp.coordTheta, H, "%s/test5"%plot_dir, mask=ppp.mask)
 
 if 0:
