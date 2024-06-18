@@ -2,6 +2,12 @@
 #that can deal with heavily oversampled rays.
 #Somewhat approximate at the moment. 
 #Not a general geometry.
+
+#1.) Find the (phi, theta) bins for every corner of every zone.
+#2.) Quantize the phi and theta bin arrays
+#3.) Each zone is covered by Ntheta * Nphi bins.  Loop over Ntheta and Nphi, fill the hist.
+
+
 from starter2 import *
 from scipy.ndimage import gaussian_filter
 
@@ -36,7 +42,8 @@ class s1p():
         r,phi,theta = make_phi_theta(xyz,center,projax)
         cube=self.cube
 
-        #get the corners
+        #1.) Find the (phi, theta) bins for every corner of every zone.
+
         got=False
         for sX in [-0.5,0.5]:
             for sY in [-0.5,0.5]:
@@ -45,9 +52,6 @@ class s1p():
                     shift.shape=(3,1,1,1)
                     xyz_shift = xyz+shift
                     r_shift, this_phi, this_theta = make_phi_theta(xyz_shift, center, projax)
-                    #r_shift = np.sqrt((xyz_shift**2).sum(axis=0))
-                    #this_theta = np.arccos(xyz_shift[2]/r_shift)
-                    #this_phi = np.arctan2(xyz_shift[1],xyz_shift[0])
                     if not got:
                         max_theta = this_theta
                         min_theta = this_theta
@@ -61,7 +65,9 @@ class s1p():
                         min_phi   = np.minimum(min_phi, this_phi)
 
 
-        #get the bins
+        #2.) Quantize the phi and theta bin arrays
+        #the eps is to make sure the last point isn't in the Nbins+1 bin.
+
         eps = 1e-15
         minmin_theta = min_theta.min()-eps
         minmin_phi = min_phi.min() - eps
@@ -84,6 +90,8 @@ class s1p():
         Nphi_bins = Nbins
 
 
+        #set up target array H and mask array F
+        #and theta and phi bins
         H = np.zeros(Nphi_bins*Ntheta_bins)
         F = np.zeros(Nphi_bins*Ntheta_bins)
         F[:]=np.nan
@@ -96,22 +104,28 @@ class s1p():
         r1 = range(Nphi_max)
         r2 = range(Ntheta_max)
         
+        #3.) Each zone is covered by Ntheta * Nphi bins.  Loop over Ntheta and Nphi, fill the hist.
+        #the mask is to not overstep a zone's influence.
         cube_ind = np.arange(cube.size)
         cube_flat = cube.flatten()
         for i in r1:
             for j in r2:
-                mask = ((Ntheta >= i)*(Nphi >= j)).flatten()
-                index  = (min_theta_bin+i + Ntheta_bins*(min_phi_bin +j)).flatten()
-                cube_ind_mask = cube_ind[mask]
-                #yes a loop.  Direct indexing fails.  Sorry.
                 if verbose:
                     print('loop',i,j,Ntheta_max)
+                #which zones to take
+                mask = ((Ntheta >= i)*(Nphi >= j)).flatten()
+                #the position in the 2d histogram H of the 3d zone
+                index  = (min_theta_bin+i + Ntheta_bins*(min_phi_bin +j)).flatten()
+                #pre compute some things
+                cube_ind_mask = cube_ind[mask]
                 mask_ind=index[mask]
+                #Do the actual filling of the histogram.
+                #Loops are to be avoided, this should be at least re done in cython.
+                #I tried to do this with a mask, but it failed.  
+                #Here is a place for speed improvements.
                 for Hi, Ii in enumerate(cube_ind[mask]):
                     H[mask_ind[Hi]] += cube_flat[Ii]
-                #loop in one direction
-                #for Ii, Hi in enumerate(index[mask]):
-                #    H[Hi] += cube_flat[cube_ind[Ii]]
+                #The mask of found pixels.
                 F[index[mask]]=0
         not_ok = np.isnan(F)
         #H[not_ok]=F[not_ok]
@@ -136,8 +150,6 @@ def plot_image(coordPhi, coordTheta, Hin, fname, mask=None):
     if mask is not None:
         not_ok = np.isnan(mask)
         H[not_ok] = np.nan
-
-
 
     fig,axes=plt.subplots(1,1)
     ax0=axes
