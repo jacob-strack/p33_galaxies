@@ -2,6 +2,9 @@
 from starter2 import *
 plt.close('all')
 import scipy.stats
+import dtools.math.equal_probability_binner as epb
+reload(epb)
+from scipy.ndimage import gaussian_filter
 
 def make_wire(N):
     dx = 1./N
@@ -31,6 +34,7 @@ def make_wire(N):
             for ny in [0,-1]:
                 out[:,nx,ny]=1
     return out
+
 def make_cube(N):
     dx = 1./N
     x,y,z = np.mgrid[0:1:dx,0:1:dx,0:1:dx]
@@ -44,7 +48,9 @@ def make_cube(N):
     ok1 = (x-c1[0])**2+(y-c1[1])**2 < r**2
     ok2 = (x-c2[0])**2+(y-c2[1])**2 < r**2
     #ok = (y-c[1])**2+(z-c[2])**2 < r**2
-    cube[ok1+ok2] = 1
+    #cube[ok1+ok2] = 1
+    cube[ok1]=1
+    cube[ok2]=2
     return cube
 
 def test1():
@@ -109,7 +115,6 @@ def test3():
         cmap.set_bad('k')
         ax0.pcolormesh(x2,z2,cube.sum(axis=projax),cmap=cmap,norm=nrm)
         ax1.pcolormesh(xx,yy,den, cmap=cmap,norm=nrm)
-        import dtools.math.equal_probability_binner as epb
         #epb.equal_prob(den[ok][den[ok]>0].flatten(),16,ax=ax2)
 
 
@@ -142,36 +147,95 @@ def test3():
         fig.tight_layout()
         fig.savefig('%s/theta'%plot_dir)
 
-def test4():
-
+def test5():
     projax=1
     N = 128
-    Nbins = N*8
+    Nbins = N//4
     dx_v = 1./N
     xyz = np.stack(np.mgrid[0:1:dx_v,0:1:dx_v,0:1:dx_v])
-    dx = np.ones([N]*3)*dx_v
     center = nar([0.5,-0.2,0.5])
     center.shape=(3,1,1,1)
     xyz_p = xyz-center
-    x2 = xyz_p[0].mean(axis=projax)
-    y2 = xyz_p[1].mean(axis=projax)
-    z2 = xyz_p[2].mean(axis=projax)
     r = np.sqrt((xyz_p**2).sum(axis=0))
-    sl = tuple([slice(None),slice(0,1),slice(None)])
-    zt = xyz_p[2]
-    rt = r
-    yt = xyz_p[1]
-    xt = xyz_p[0]
-    theta = np.arccos( zt/rt )
-    phi   = np.arctan2( yt, xt)
+    theta = np.arccos( xyz_p[2]/r )
+    phi   = np.arctan2( xyz_p[1], xyz_p[0])
+    cube=make_cube(N)
+    if 1:
+        fig6,ax6=plt.subplots(2,2)
+        ax6[0][0].imshow(phi.sum(axis=0))
+        ax6[0][1].imshow(phi.sum(axis=1))
+        ax6[1][0].imshow(phi.sum(axis=2))
+        ax6[1][1].imshow(r.sum(axis=projax))
+        fig6.savefig('%s/arg'%plot_dir)
+
+
+    eps = 1e-15
+    minmin_theta = theta.min()-eps
+    minmin_phi = phi.min() - eps
+    maxmax_theta = theta.max() +eps
+    maxmax_phi = phi.max() + eps
+    dtheta = (maxmax_theta-minmin_theta)/(Nbins)
+    dphi   = (maxmax_phi - minmin_phi)/(Nbins)
+    min_theta_bin =((theta - minmin_theta)//dtheta).astype('int')
+    min_phi_bin =  ((phi - minmin_phi)//dphi).astype('int')
+    i=0;j=0
+
+
+    H = np.zeros(Nbins**2)
+    F = np.zeros(Nbins**2)
+    F[:]=np.nan
+    index  = (min_theta_bin+i + Nbins*(min_phi_bin +j)).flatten()
+    #H[index] += cube.flatten()
+    #H[index] += xyz_p[2].flatten()
+    cf = cube.flatten()
+    print('slooooow')
+    for ni,i in enumerate(index):
+        H[i]+=cf[ni]
+    print('done')
+    H.shape=Nbins,Nbins
+    not_ok = np.isnan(F)
+    #H[not_ok]=F[not_ok]
+
+    theta_bins = np.linspace( minmin_theta, maxmax_theta, Nbins)
+    phi_bins = np.linspace( minmin_phi, maxmax_phi, Nbins)
+    theta_cen = 0.5*(theta_bins)
+    phi_cen = 0.5*(phi_bins)
+    coordPhi, coordTheta = np.meshgrid(phi_cen,theta_cen, indexing='ij')
+
+
+    ok = ~np.isnan(H)
+    nrm = mpl.colors.Normalize( vmin=H[ok].min(), vmax=H[ok].max())
+    #nrm = mpl.colors.Normalize(vmin=0,vmax=4)
+    cmap = copy.copy(mpl.cm.get_cmap("Reds"))
+    cmap.set_under('w')
+    cmap.set_bad('k')
+    fig,axes=plt.subplots(1,2)
+    ax0=axes[0]; ax1=axes[1]
+    p=ax0.pcolormesh(coordPhi, coordTheta, H, cmap=cmap,norm=nrm )
+    fig.colorbar(p,ax=ax0)
+    fig.savefig('%s/take5'%plot_dir)
+
+def test4():
+    projax=1
+    N = 128
+    Nbins = N*4
+    dx_v = 1./N
 
     cube=make_cube(N)
 
+    xyz = np.stack(np.mgrid[0:1:dx_v,0:1:dx_v,0:1:dx_v])
+    center = nar([0.5,-0.2,0.5])
+    center.shape=(3,1,1,1)
+    xyz_p = xyz-center
+    r = np.sqrt((xyz_p**2).sum(axis=0))
+    theta = np.arccos( xyz_p[2]/r )
+    phi   = np.arctan2( xyz_p[1], xyz_p[0])
 
+    #get the corners
     got=False
-    for sX in [-0.5,0.5]:
-        for sY in [-0.5,0.5]:
-            for sZ in [-0.5,0.5]:
+    for sX in [0,-0.5,0.5]:
+        for sY in [0,-0.5,0.5]:
+            for sZ in [0,-0.5,0.5]:
                 shift = np.stack([sX,sY,sZ])*dx_v
                 shift.shape=(3,1,1,1)
                 xyz_shift = xyz_p+shift
@@ -179,24 +243,26 @@ def test4():
                 this_theta = np.arccos(xyz_shift[2]/r_shift)
                 this_phi = np.arctan2(xyz_shift[1],xyz_shift[0])
                 if not got:
-                    print('b')
                     max_theta = this_theta
                     min_theta = this_theta
                     max_phi = this_phi
                     min_phi = this_phi
                     got=True
                 else:
-                    print('c')
                     max_theta = np.maximum(max_theta, this_theta)
                     min_theta = np.minimum(min_theta, this_theta)
                     max_phi   = np.maximum(max_phi, this_phi)
                     min_phi   = np.minimum(min_phi, this_phi)
-    minmin_theta = min_theta.min()
-    minmin_phi = min_phi.min()
-    maxmax_theta = max_theta.max()
-    maxmax_phi = max_phi.max()
-    dtheta = (maxmax_theta-minmin_theta)/Nbins
-    dphi   = (maxmax_phi - minmin_phi)/Nbins
+
+
+    #get the bins
+    eps = 1e-15
+    minmin_theta = min_theta.min()-eps
+    minmin_phi = min_phi.min() - eps
+    maxmax_theta = max_theta.max() +eps
+    maxmax_phi = max_phi.max() + eps
+    dtheta = (maxmax_theta-minmin_theta)/(Nbins)
+    dphi   = (maxmax_phi - minmin_phi)/(Nbins)
     min_theta_bin =((min_theta - minmin_theta)//dtheta).astype('int')
     min_phi_bin =  ((min_phi - minmin_phi)//dphi).astype('int')
     max_theta_bin =((max_theta - minmin_theta)//dtheta).astype('int')
@@ -205,9 +271,11 @@ def test4():
     Nphi   = max_phi_bin - min_phi_bin
     Ntheta_max = Ntheta.max()
     Nphi_max = Nphi.max()
-    print(Ntheta_max, Nphi_max)
+    print("Ntheta across, Npphi",Ntheta_max, Nphi_max)
+    print("max theta bin",max_theta_bin.max())
     Ntheta_bins=Nbins
     Nphi_bins = Nbins
+
 
     H = np.zeros(Nphi_bins*Ntheta_bins)
     F = np.zeros(Nphi_bins*Ntheta_bins)
@@ -217,30 +285,46 @@ def test4():
     theta_cen = 0.5*(theta_bins)
     phi_cen = 0.5*(phi_bins)
     coordPhi, coordTheta = np.meshgrid(phi_cen,theta_cen, indexing='ij')
-    #pdb.set_trace()
+
     r1 = range(Nphi_max)
     r2 = range(Ntheta_max)
-    for i in r1:#range(Nphi_max):
-        for j in r2:#range(Ntheta_max):
-            mask = ((Ntheta >= i)*(Nphi >= i)).flatten()
+    
+    cube_ind = np.arange(cube.size)
+    cube_flat = cube.flatten()
+    #cube_flat = phi.flatten()
+    for i in r1:
+        for j in r2:
+            mask = ((Ntheta >= i)*(Nphi >= j)).flatten()
             index  = (min_theta_bin+i + Ntheta_bins*(min_phi_bin +j)).flatten()
-            H[index]+=cube.flatten()
-            F[index]=0
-            #print(H[index] )
-            #H[mask][index[mask].flatten()] = 1
+            cube_ind_mask = cube_ind[mask]
+            #yes a loop.  Direct indexing fails.  Sorry.
+            print('loop',i,j,Ntheta_max)
+            mask_ind=index[mask]
+            for Hi, Ii in enumerate(cube_ind[mask]):
+                H[mask_ind[Hi]] += cube_flat[Ii]
+            #loop in one direction
+            #for Ii, Hi in enumerate(index[mask]):
+            #    H[Hi] += cube_flat[cube_ind[Ii]]
+            F[index[mask]]=0
     not_ok = np.isnan(F)
-    #H[not_ok]=F[not_ok]
+    H[not_ok]=F[not_ok]
     H.shape = Nphi_bins,Ntheta_bins
+
+    H = gaussian_filter(H,2)
     #nrm = mpl.colors.Normalize(vmin=den[ok][den[ok]>0].min(),vmax=den[ok].max())
     ok = ~np.isnan(H)
-    nrm = mpl.colors.Normalize( vmin=H[ok][H[ok]>0].min(), vmax=H[ok].max())
+    nrm = mpl.colors.Normalize( vmin=H[ok].min(), vmax=H[ok].max())
+    #nrm = mpl.colors.Normalize(vmin=0,vmax=4)
     cmap = copy.copy(mpl.cm.get_cmap("Reds"))
-    cmap.set_under('w')
+    cmap.set_under('g')
     cmap.set_bad('k')
+
+
     fig,axes=plt.subplots(1,1)
     ax0=axes
     p=ax0.pcolormesh(coordPhi, coordTheta, H, cmap=cmap,norm=nrm )
     fig.colorbar(p,ax=ax0)
+    
     fig.savefig('%s/test2'%plot_dir)
 
 
