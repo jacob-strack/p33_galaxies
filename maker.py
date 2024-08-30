@@ -1,6 +1,6 @@
 
 from starter2 import *
-
+import pdb
 import projector.proj as proj
 reload(proj)
 
@@ -14,7 +14,8 @@ Nbins = N*4
 cube = proj.make_cube(N)
 
 #ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True,Nbins=1024)
-ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True, Nbins=256)
+#testing if projax works...
+ppp= s1p.s1p(cube, center=nar([0.5,-.001,0.5]), projax=[0,1,0], verbose=True, Nbins=256)
 H = gaussian_filter(ppp.H,2)
 #H = ppp.H
 

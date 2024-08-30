@@ -280,6 +280,7 @@ def test4():
     H = np.zeros(Nphi_bins*Ntheta_bins)
     F = np.zeros(Nphi_bins*Ntheta_bins)
     F[:]=np.nan
+    print("angles", minmin_theta, maxmax_theta, minmin_phi, maxmax_phi)
     theta_bins = np.linspace( minmin_theta, maxmax_theta, Ntheta_bins)
     phi_bins = np.linspace( minmin_phi, maxmax_phi, Nphi_bins)
     theta_cen = 0.5*(theta_bins)
