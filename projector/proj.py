@@ -51,6 +51,7 @@ def make_cube(N):
     #cube[ok1+ok2] = 1
     cube[ok1]=1
     cube[ok2]=2
+    #cube += 10*make_wire(N)
     return cube
 
 def test1():

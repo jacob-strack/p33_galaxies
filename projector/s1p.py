@@ -48,15 +48,13 @@ def make_phi_theta(xyz,center,projax):
     import pdb
     #theta_new = np.arccos(z_new/r_new) right but not what we want
     #phi_new = np.arctan2(y_new,x_new)
-    theta_new = np.zeros_like(y_new)
-    ok = np.abs(r_new) > 0
-    theta_new[ok] = np.arccos(x_new[ok]/r_new[ok])
+    theta_new = np.arctan2(x_new,np.abs(z_new))
     phi_new = np.arctan2(y_new,z_new)
     xyz_new = [x_new,y_new,z_new]
     if 0:
         pdb.set_trace()
     if 1:
-        projax=1
+        projax=2
         plt.clf()
         plt.imshow(theta_new.mean(axis=projax).T)
         plt.colorbar()
@@ -77,6 +75,16 @@ def make_phi_theta(xyz,center,projax):
         plt.imshow(z_new.mean(axis=projax).T)
         plt.colorbar()
         plt.savefig("%s/plots/z_new.png"%os.environ["HOME"])
+        plt.clf()
+        rho_theta = np.sqrt(xyz_new[0]**2 + xyz_new[2]**2)
+        plt.imshow(rho_theta.mean(axis=projax).T)
+        plt.colorbar()
+        plt.savefig("%s/plots/rho_theta.png"%os.environ["HOME"])
+        plt.clf()
+        rho_phi = np.sqrt(xyz_new[1]**2 + xyz_new[2]**2)
+        plt.imshow(rho_phi.mean(axis=projax).T)
+        plt.colorbar()
+        plt.savefig("%s/plots/rho_phi.png"%os.environ["HOME"])
     return xyz_new, phi_new, theta_new
       
 
@@ -118,17 +126,19 @@ class s1p():
         #center works, projax is a dummy variable.  Presently hard coded along y.
         xyz_new,phi,theta = make_phi_theta(xyz,center,projax)
         cube=self.cube
-        cube = xyz[0]
+        #cube = xyz[0]
         #1.) Find the (phi, theta) bins for every corner of every zone.
-        rho = np.sqrt((xyz[0]-center[0])**2 + (xyz[1]-center[1])**2)
-        ok1 = rho > 10*dx_v
-        print("dx_v",dx_v)
+        rho_ph = np.sqrt(xyz_new[2]**2 + xyz_new[1]**2)
+        rho_th = np.sqrt(xyz_new[2]**2 + xyz_new[0]**2)
+        okph = rho_ph > 10*dx_v
+        okth = rho_th > 0*dx_v
         got=False
         collector = []
         shift_array=[-0.5,0.5]
         for sX in shift_array:
             for sY in shift_array:
                 for sZ in shift_array:
+                    print(sX,sY,sZ)
                     shift = np.stack([sX,sY,sZ])*dx_v
                     shift.shape=(3,1,1,1)
                     xyz_shift = xyz+shift
@@ -145,8 +155,6 @@ class s1p():
                         min_theta = np.minimum(min_theta, this_theta)
                         max_phi   = np.maximum(max_phi, this_phi)
                         min_phi   = np.minimum(min_phi, this_phi)
-                    print("max_diff", np.max(max_phi - min_phi))
-                    print("max diff mod 2pi", np.minimum(np.max(max_phi - min_phi), 2*np.pi - np.max(max_phi - min_phi)))
         plt.clf()
         plt.imshow(min_phi.min(axis=1))
         plt.colorbar()
@@ -176,22 +184,21 @@ class s1p():
         eps = 1e-15
         deltaphi=max_phi - min_phi
         deltatheta = max_theta - min_theta
-        ok2 = (deltaphi < np.pi/2)*(deltatheta<np.pi/2)
-        nok = (max_phi*min_phi < 0)*(np.abs(max_phi)>np.pi/2)*(np.abs(min_phi)>np.pi/2)
-        ok3 = ok1*ok2
-        max_phi[~ok3] = -1 
-        min_phi[~ok3] = -1 
-        max_theta[~ok3] = -1 
-        min_theta[~ok3] = -1 
-        max_phi[nok] = -1 
-        min_phi[nok] = -1 
-        max_theta[nok] = -1 
-        min_theta[nok] = -1
+        ok1 = (deltaphi > np.pi/2)#*(deltatheta < np.pi/2)
+        ok3 = okph#*ok1
+        #ok3 = np.ones_like(max_phi,dtype='bool')
+        import pdb 
+        #pdb.set_trace()
+        max_phi[ok1] -= 2*np.pi
+        #max_phi[~ok3] = -1 
+        #min_phi[~ok3] = -1  
+        #max_theta[~ok3] = -4 
+        #min_theta[~ok3] = -4
         #smallest and largest angles in the bin
-        minmin_theta = min_theta[ok3*~nok].min()-eps
-        minmin_phi  = min_phi[ok3*~nok].min() - eps
-        maxmax_theta = max_theta[ok3*~nok].max() +eps
-        maxmax_phi = max_phi[ok3*~nok].max() + eps
+        minmin_theta = min_theta[ok3].min()-eps
+        minmin_phi  = min_phi[ok3].min() - eps
+        maxmax_theta = max_theta[ok3].max() +eps
+        maxmax_phi = max_phi[ok3].max() + eps
         #do i need to do this to get the right width of each bin?
         #phi_diff = np.minimum(np.abs(maxmax_phi - minmin_phi),np.abs(-2*np.pi + (maxmax_phi - minmin_phi)))
         dtheta = (maxmax_theta-minmin_theta)/(Nbins)
@@ -202,7 +209,6 @@ class s1p():
         deltaphi2 = (max_phi - 2*np.pi) - min_phi
         actdeltaphi = np.minimum(np.abs(deltaphi1),np.abs(deltaphi2))
         import pdb 
-        pdb.set_trace()
         min_theta_bin =((min_theta - minmin_theta)//dtheta).astype('int')
         min_phi_bin =  ((min_phi - minmin_phi)//dphi).astype('int')
         #min_phi_bin =  (np.minimum((min_phi - minmin_phi), 2*np.pi - (min_phi - minmin_phi))//dphi).astype('int')
@@ -212,20 +218,18 @@ class s1p():
         #number of populated bins in theta and phi
         Ntheta = max_theta_bin-min_theta_bin
         import pdb
-        pdb.set_trace()
         Nphi   = max_phi_bin - min_phi_bin #dcc maybe needs a +1? No, a max.
         ones = np.ones_like(Ntheta)
         Ntheta = np.maximum(Ntheta, ones)
         Nphi = np.maximum(Nphi, ones)
-        Nphi[~ok1] = 0
-        Ntheta[~ok1] = 0
+        Nphi[~ok3] = 0
+        Ntheta[~ok3] = 0
         Nphi_flat = Nphi.flatten()
         max_phi_bin_flat = max_phi_bin.flatten()
         min_phi_bin_flat = min_phi_bin.flatten()
         max_phi_flat = max_phi.flatten()
         min_phi_flat = min_phi.flatten()
         import pdb
-        pdb.set_trace()
         plt.clf()
         plt.plot(Nphi_flat)
         plt.savefig("Nphiflaty.png")
@@ -258,10 +262,6 @@ class s1p():
         ind_min = np.argmin(Nphi_flat)
         Ntheta_max = Ntheta.max()
         Nphi_max = Nphi.max() #why is this so big?
-        if verbose:
-            print("minmin/maxmax", minmin_theta, maxmax_theta, minmin_phi, maxmax_phi)
-            print("Ntheta across, Npphi",Ntheta_max, Nphi_max)
-            print("max theta bin",max_theta_bin.max())
         Ntheta_bins=Nbins
         Nphi_bins = Nbins
 
@@ -278,7 +278,6 @@ class s1p():
         coordPhi, coordTheta = np.meshgrid(phi_cen,theta_cen, indexing='ij')
         import loop
         import pdb
-        pdb.set_trace()
         H,F = loop.big_loop(H,F,cube,Nphi_max,Ntheta_max,min_phi_bin,min_theta_bin,Ntheta_bins,Nphi,Ntheta,verbose=True)
         H.shape = Nphi_bins,Ntheta_bins
         F.shape = Nphi_bins,Ntheta_bins
@@ -304,7 +303,6 @@ def plot_image(coordPhi, coordTheta, Hin, fname, mask=None):
     fig,axes=plt.subplots(1,1)
     ax0=axes
     import pdb 
-    pdb.set_trace()
     p=ax0.pcolormesh(coordPhi[::-1], coordTheta, H, cmap=cmap,norm=nrm )
     fig.colorbar(p,ax=ax0)
     
