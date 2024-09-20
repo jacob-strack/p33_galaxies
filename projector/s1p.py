@@ -54,7 +54,7 @@ def make_phi_theta(xyz,center,projax):
     if 0:
         pdb.set_trace()
     if 1:
-        projax=2
+        projax=0
         plt.clf()
         plt.imshow(theta_new.mean(axis=projax).T)
         plt.colorbar()
@@ -134,6 +134,7 @@ class s1p():
         okth = rho_th > 0*dx_v
         got=False
         collector = []
+        theta_collector = []
         shift_array=[-0.5,0.5]
         for sX in shift_array:
             for sY in shift_array:
@@ -142,8 +143,9 @@ class s1p():
                     shift = np.stack([sX,sY,sZ])*dx_v
                     shift.shape=(3,1,1,1)
                     xyz_shift = xyz+shift
-                    r_shift, this_phi, this_theta = make_phi_theta(xyz_shift, center, projax)
-                    collector.append(this_phi)
+                    xyz_new_shift, this_phi, this_theta = make_phi_theta(xyz_shift, center, projax)
+                    collector.append(xyz_new_shift)
+                    theta_collector.append(this_theta)
                     if not got:
                         max_theta = this_theta
                         min_theta = this_theta
@@ -185,15 +187,11 @@ class s1p():
         deltaphi=max_phi - min_phi
         deltatheta = max_theta - min_theta
         ok1 = (deltaphi > np.pi/2)#*(deltatheta < np.pi/2)
-        ok3 = okph#*ok1
+        ok3 = okph*okth
         #ok3 = np.ones_like(max_phi,dtype='bool')
         import pdb 
         #pdb.set_trace()
         max_phi[ok1] -= 2*np.pi
-        #max_phi[~ok3] = -1 
-        #min_phi[~ok3] = -1  
-        #max_theta[~ok3] = -4 
-        #min_theta[~ok3] = -4
         #smallest and largest angles in the bin
         minmin_theta = min_theta[ok3].min()-eps
         minmin_phi  = min_phi[ok3].min() - eps
@@ -240,6 +238,12 @@ class s1p():
         plt.plot(min_phi_flat)
         plt.savefig("minphiflaty.png")
         ind = np.argmax(Nphi_flat)
+        if 1: 
+            projax = 2
+            plt.clf() 
+            plt.imshow(Ntheta.max(axis=projax))
+            plt.colorbar()
+            plt.savefig("%s/plots/Nthetaproj.png"%os.environ["HOME"])
         if 0:
             plt.clf()
             plt.plot(xyz[0][ok3],Ntheta[ok3])
@@ -264,7 +268,7 @@ class s1p():
         Nphi_max = Nphi.max() #why is this so big?
         Ntheta_bins=Nbins
         Nphi_bins = Nbins
-
+        pdb.set_trace()
 
         #set up target array H and mask array F
         #and theta and phi bins
@@ -286,6 +290,7 @@ class s1p():
         self.coordTheta=coordTheta
         self.H = H
         self.mask = F
+        pdb.set_trace()
 def plot_image(coordPhi, coordTheta, Hin, fname, mask=None):
     H = Hin + 0 #make a copy
     #nrm = mpl.colors.Normalize(vmin=den[ok][den[ok]>0].min(),vmax=den[ok].max())
