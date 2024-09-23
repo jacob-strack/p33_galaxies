@@ -15,7 +15,7 @@ cube = proj.make_cube(N)
 
 #ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True,Nbins=1024)
 #testing if projax works...
-ppp= s1p.s1p(cube, center=nar([0.5,-.001,0.5]), projax=[0,1,0], verbose=True, Nbins=256)
+ppp= s1p.s1p(cube, center=nar([0.5,0.5,0.5]), projax=[0,1,0], verbose=True, Nbins=256)
 H = gaussian_filter(ppp.H,2)
 #H = ppp.H
 
