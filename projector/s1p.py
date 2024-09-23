@@ -48,12 +48,14 @@ def make_phi_theta(xyz,center,projax):
     import pdb
     #theta_new = np.arccos(z_new/r_new) right but not what we want
     #phi_new = np.arctan2(y_new,x_new)
-    theta_new = np.arctan2(x_new,np.abs(z_new))
+    #theta_new = np.arctan2(x_new,np.abs(z_new))
+    #dcc change here
+    theta_new = np.arctan2(x_new,np.sqrt(z_new**2+y_new**2))
     phi_new = np.arctan2(y_new,z_new)
     xyz_new = [x_new,y_new,z_new]
     if 0:
         pdb.set_trace()
-    if 1:
+    if 0:
         projax=0
         plt.clf()
         plt.imshow(theta_new.mean(axis=projax).T)
@@ -126,12 +128,8 @@ class s1p():
         #center works, projax is a dummy variable.  Presently hard coded along y.
         xyz_new,phi,theta = make_phi_theta(xyz,center,projax)
         cube=self.cube
-        #cube = xyz[0]
-        #1.) Find the (phi, theta) bins for every corner of every zone.
-        rho_ph = np.sqrt(xyz_new[2]**2 + xyz_new[1]**2)
-        rho_th = np.sqrt(xyz_new[2]**2 + xyz_new[0]**2)
-        okph = rho_ph > 10*dx_v
-        okth = rho_th > 0*dx_v
+        ok3 = np.sqrt( xyz_new[0]**2+xyz_new[1]**2+xyz_new[2]**2) > 5*dx_v
+        print((~ok3).sum())
         got=False
         collector = []
         theta_collector = []
@@ -144,8 +142,8 @@ class s1p():
                     shift.shape=(3,1,1,1)
                     xyz_shift = xyz+shift
                     xyz_new_shift, this_phi, this_theta = make_phi_theta(xyz_shift, center, projax)
-                    collector.append(xyz_new_shift)
-                    theta_collector.append(this_theta)
+                    #collector.append(xyz_new_shift)
+                    #theta_collector.append(this_theta)
                     if not got:
                         max_theta = this_theta
                         min_theta = this_theta
@@ -187,7 +185,8 @@ class s1p():
         deltaphi=max_phi - min_phi
         deltatheta = max_theta - min_theta
         ok1 = (deltaphi > np.pi/2)#*(deltatheta < np.pi/2)
-        ok3 = okph*okth
+        #dcc no don't do this.
+        #ok3 = okph*okth
         #ok3 = np.ones_like(max_phi,dtype='bool')
         import pdb 
         #pdb.set_trace()
