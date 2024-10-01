@@ -18,11 +18,12 @@ def make_xyz(cube):
     xyz = np.stack(np.mgrid[0:1:dx_v,0:1:dx_v,0:1:dx_v])
     return xyz, dx_v
 
-def make_phi_theta(xyz,center,projax):
+def make_phi_theta(xyz_p,center,projax):
     """ presently not very general"""
     center.shape=(3,1,1,1)
-    xyz_p = xyz-center
-    r = np.sqrt((xyz_p**2).sum(axis=0))
+    #xyz_p = xyz-center
+    #r = np.sqrt((xyz_p**2).sum(axis=0))
+    r = np.sqrt(xyz_p[0]**2 + xyz_p[1]**2 + xyz_p[2]**2)
     theta = np.arccos( xyz_p[2]/r )
     phi   = np.arctan2( xyz_p[1], xyz_p[0])
     #the x,y,z axes in healpix form a spherical axis system with r along z', phi along y', theta along x'
@@ -116,34 +117,47 @@ def rotate_test(projax):
 
 
 class s1p():
-    def __init__(self,cube, center=nar([0.5,-0.2,0.5]), projax=[0,1,0], verbose=False, Nbins=None):
-        self.cube=cube
+    def __init__(self,ad,field, center=nar([0.5,-0.2,0.5]), projax=[0,1,0], verbose=False, Nbins=None):
+        self.ad = ad
+        self.field = field
         self.proj(center, projax, verbose, Nbins)
+        
     def proj(self, center=nar([0.5,-0.2,0.5]),projax=[0,0,1], verbose=False, Nbins=None):
-        cube=self.cube
+        ad = self.ad
+        field = self.field
         if Nbins is None:
-            Nbins = cube.shape[0]
-
-        xyz, dx_v = make_xyz(cube)
+            Nbins = ad["x"].shape()
+        xyz, dx_v = [ad["x"].in_units("code_length"), ad["y"].in_units("code_length"), ad["z"].in_units("code_length")], [ad["dx"].in_units("code_length"), ad["dy"].in_units("code_length"), ad["dz"].in_units("code_length")]
+        xyz[0] = xyz[0] - center[0]*ad["x"].in_units("code_length").uq
+        xyz[1] = xyz[1] - center[1]*ad["x"].in_units("code_length").uq
+        xyz[2] = xyz[2] - center[2]*ad["x"].in_units("code_length").uq
+        import pdb
+        print("xyz mins", xyz[0].min(), xyz[1].min(), xyz[2].min())
+        print("xyz maxs", xyz[0].max(), xyz[1].max(), xyz[2].max())
         #center works, projax is a dummy variable.  Presently hard coded along y.
         xyz_new,phi,theta = make_phi_theta(xyz,center,projax)
-        cube=self.cube
-        ok3 = np.sqrt( xyz_new[0]**2+xyz_new[1]**2+xyz_new[2]**2) > 5*dx_v
+        ok3 = np.sqrt( xyz_new[0]**2+xyz_new[1]**2+xyz_new[2]**2) > .005
+        print("xyz shape", np.shape(xyz_new))
+        print(ok3.shape)
         print((~ok3).sum())
         got=False
+        phi_collector = [] 
         collector = []
         theta_collector = []
-        shift_array=[-0.5,0.5]
+        shift_array=[-0.5, 0.5]
         for sX in shift_array:
             for sY in shift_array:
                 for sZ in shift_array:
-                    print(sX,sY,sZ)
-                    shift = np.stack([sX,sY,sZ])*dx_v
-                    shift.shape=(3,1,1,1)
-                    xyz_shift = xyz+shift
+                    #print(sX,sY,sZ)
+                    #shift = np.stack([sX,sY,sZ])*dx_v
+                    #shift.shape=(3,1,1,1)
+                    shift = [sX*dx_v[0], sY*dx_v[1], sZ*dx_v[2]]
+                    print(sX, sY, sZ)
+                    xyz_shift = [xyz[0] + shift[0], xyz[1] + shift[1], xyz[2] + shift[2]]
                     xyz_new_shift, this_phi, this_theta = make_phi_theta(xyz_shift, center, projax)
-                    #collector.append(xyz_new_shift)
-                    #theta_collector.append(this_theta)
+                    collector.append(xyz_new_shift)
+                    theta_collector.append(this_theta)
+                    phi_collector.append(this_phi)
                     if not got:
                         max_theta = this_theta
                         min_theta = this_theta
@@ -155,36 +169,14 @@ class s1p():
                         min_theta = np.minimum(min_theta, this_theta)
                         max_phi   = np.maximum(max_phi, this_phi)
                         min_phi   = np.minimum(min_phi, this_phi)
-        plt.clf()
-        plt.imshow(min_phi.min(axis=1))
-        plt.colorbar()
-        plt.savefig("%s/plots/min_phi.png"%os.environ["HOME"])
-        plt.clf()
-        plt.imshow(max_phi.max(axis=1))
-        plt.colorbar()
-        plt.savefig("%s/plots/max_phi.png"%os.environ["HOME"])
-        plt.clf()
-        plt.imshow((max_phi - min_phi).max(axis=1))
-        plt.colorbar()
-        plt.savefig("%s/plots/maxmminphi.png"%os.environ["HOME"])
-        plt.clf()
-        plt.imshow(this_phi[-1,:,:])
-        plt.colorbar()
-        plt.savefig("%s/plots/phi1.png"%os.environ["HOME"])
-        plt.clf()
-        plt.imshow(this_theta[-1,:,:])
-        plt.colorbar()
-        plt.savefig("%s/plots/theta1.png"%os.environ["HOME"])
-        plt.clf()
-        plt.imshow(max_theta.mean(axis=1))
-        plt.colorbar()
-        plt.savefig("%s/plots/max_theta.png"%os.environ["HOME"])
+        print(np.shape(min_phi))
         #2.) Quantize the phi and theta bin arrays
         #the eps is to make sure the last point isn't in the Nbins+1 bin.
         eps = 1e-15
         deltaphi=max_phi - min_phi
         deltatheta = max_theta - min_theta
         ok1 = (deltaphi > np.pi/2)#*(deltatheta < np.pi/2)
+        print("ok1 shape", ok1.shape)
         #dcc no don't do this.
         #ok3 = okph*okth
         #ok3 = np.ones_like(max_phi,dtype='bool')
@@ -192,6 +184,7 @@ class s1p():
         #pdb.set_trace()
         max_phi[ok1] -= 2*np.pi
         #smallest and largest angles in the bin
+        print("min_theta shape", min_theta.shape)
         minmin_theta = min_theta[ok3].min()-eps
         minmin_phi  = min_phi[ok3].min() - eps
         maxmax_theta = max_theta[ok3].max() +eps
@@ -237,7 +230,7 @@ class s1p():
         plt.plot(min_phi_flat)
         plt.savefig("minphiflaty.png")
         ind = np.argmax(Nphi_flat)
-        if 1: 
+        if 0: 
             projax = 2
             plt.clf() 
             plt.imshow(Ntheta.max(axis=projax))
@@ -267,11 +260,13 @@ class s1p():
         Nphi_max = Nphi.max() #why is this so big?
         Ntheta_bins=Nbins
         Nphi_bins = Nbins
-        pdb.set_trace()
+        #pdb.set_trace()
 
         #set up target array H and mask array F
         #and theta and phi bins
         H = np.zeros(Nphi_bins*Ntheta_bins)
+        import yt
+        H = yt.YTArray(H, field.units)
         F = np.zeros(Nphi_bins*Ntheta_bins)
         F[:]=np.nan
         theta_bins = np.linspace( minmin_theta, maxmax_theta, Ntheta_bins)
@@ -279,9 +274,11 @@ class s1p():
         theta_cen = theta_bins + 0.5*(theta_bins[1]-theta_bins[0])
         phi_cen = phi_bins + 0.5*(phi_bins[1]-phi_bins[0])
         coordPhi, coordTheta = np.meshgrid(phi_cen,theta_cen, indexing='ij')
+        coordPhi = yt.YTArray(coordPhi, 'dimensionless')
+        coordTheta = yt.YTArray(coordTheta, 'dimensionless')
         import loop
         import pdb
-        H,F = loop.big_loop(H,F,cube,Nphi_max,Ntheta_max,min_phi_bin,min_theta_bin,Ntheta_bins,Nphi,Ntheta,verbose=True)
+        H,F = loop.big_loop(H,F,field,Nphi_max,Ntheta_max,min_phi_bin,min_theta_bin,Ntheta_bins,Nphi,Ntheta,verbose=True)
         H.shape = Nphi_bins,Ntheta_bins
         F.shape = Nphi_bins,Ntheta_bins
 
@@ -289,7 +286,7 @@ class s1p():
         self.coordTheta=coordTheta
         self.H = H
         self.mask = F
-        pdb.set_trace()
+        #pdb.set_trace()
 def plot_image(coordPhi, coordTheta, Hin, fname, mask=None):
     H = Hin + 0 #make a copy
     #nrm = mpl.colors.Normalize(vmin=den[ok][den[ok]>0].min(),vmax=den[ok].max())
@@ -308,9 +305,19 @@ def plot_image(coordPhi, coordTheta, Hin, fname, mask=None):
     ax0=axes
     import pdb 
     p=ax0.pcolormesh(coordPhi[::-1], coordTheta, H, cmap=cmap,norm=nrm )
+    print(np.shape(p))
     fig.colorbar(p,ax=ax0)
     
-    fig.savefig('%s/test2'%plot_dir)
+    fig.savefig('%s/test22'%plot_dir)
+
+def E_B_maps(Q_map, U_map): 
+    I_map = np.sqrt(Q_map*Q_map + U_map*U_map)
+    import healpy as hp 
+    alms = hp.sphtfunc.map2alm(I_map, Q_map, U_map)
+    nside = hp.get_nside(I_map)
+    E_map = hp.sphtfunc.alm2map(alms[1],nside)
+    B_map = hp.sphtfunc.alm2map(alms[2],nside)
+    return E_map, B_map
 
 def rotationtest(): 
     #testing rotation for any axis projection
