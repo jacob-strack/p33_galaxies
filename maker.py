@@ -47,7 +47,7 @@ def _U_int(field, data):
     B_sq = B[0]**2 + B[1]**2 + B[2]**2
     return data["density"]*2*Bx_new*By_new / B_sq
 
-
+import healpy as hp 
 N = 256
 Nbins = N*4
 ds = yt.load("~/scratch/DD0026/DD0026")
@@ -62,14 +62,24 @@ print("test", ad.get_field_parameter("projax_z"))
 field = ad["U_integrand"].in_units("code_density")
 #ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True,Nbins=1024)
 #testing if projax works...
-ppp= s1p.s1p(ad,field, center=nar([0.5,0.5,0.495]), projax=[0,0,1], verbose=True, Nbins=512)
+ppp= s1p.s1p(ad,field, center=nar([0.5,0.5,0.5]), projax=[1,0,0], verbose=True, Nbins=N)
 H = gaussian_filter(ppp.H,2)
+import healpy as hp 
 #H = ppp.H
 
-#put other field here when making E,B maps 
-
+print("H valid value", hp.pixelfunc.maptype(ppp.map))
+print("map shape", np.shape(ppp.map))
 s1p.plot_image(ppp.coordPhi, ppp.coordTheta, H, "%s/test5"%plot_dir, mask=ppp.mask)
+print(np.shape(H))
+#put other field here when making E,B maps 
+field2 = ad["Q_integrand"].in_units("code_density")
+p2 = s1p.s1p(ad,field2, center=nar([0.5, 0.5, 0.495]), projax=[1,0,0], verbose=True, Nbins = N)
+H2 = gaussian_filter(p2.H,2) 
 
+print("H valid value", hp.pixelfunc.maptype(ppp.map))
+print("H2 valid value", hp.pixelfunc.maptype(p2.map))
+#map stuff 
+E,B = s1p.E_B_maps(ppp.map,p2.map)
 if 0:
     #tests
     #proj.test3()

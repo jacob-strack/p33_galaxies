@@ -22,7 +22,7 @@ def make_phi_theta(xyz_p,center,projax):
     """ presently not very general"""
     center.shape=(3,1,1,1)
     #xyz_p = xyz-center
-    #r = np.sqrt((xyz_p**2).sum(axis=0))
+    #_r = np.sqrt((xyz_p**2).sum(axis=0))
     r = np.sqrt(xyz_p[0]**2 + xyz_p[1]**2 + xyz_p[2]**2)
     theta = np.arccos( xyz_p[2]/r )
     phi   = np.arctan2( xyz_p[1], xyz_p[0])
@@ -189,6 +189,8 @@ class s1p():
         minmin_phi  = min_phi[ok3].min() - eps
         maxmax_theta = max_theta[ok3].max() +eps
         maxmax_phi = max_phi[ok3].max() + eps
+        print("theta min/max" , minmin_theta + np.pi/2, maxmax_theta+np.pi/2)
+        print("phi min/max", minmin_phi + np.pi, maxmax_phi + np.pi)
         #do i need to do this to get the right width of each bin?
         #phi_diff = np.minimum(np.abs(maxmax_phi - minmin_phi),np.abs(-2*np.pi + (maxmax_phi - minmin_phi)))
         dtheta = (maxmax_theta-minmin_theta)/(Nbins)
@@ -264,10 +266,10 @@ class s1p():
 
         #set up target array H and mask array F
         #and theta and phi bins
-        H = np.zeros(Nphi_bins*Ntheta_bins)
+        H = np.zeros(Ntheta_bins*Nphi_bins)
         import yt
         H = yt.YTArray(H, field.units)
-        F = np.zeros(Nphi_bins*Ntheta_bins)
+        F = np.zeros(Ntheta_bins*Nphi_bins)
         F[:]=np.nan
         theta_bins = np.linspace( minmin_theta, maxmax_theta, Ntheta_bins)
         phi_bins = np.linspace( minmin_phi, maxmax_phi, Nphi_bins)
@@ -276,9 +278,18 @@ class s1p():
         coordPhi, coordTheta = np.meshgrid(phi_cen,theta_cen, indexing='ij')
         coordPhi = yt.YTArray(coordPhi, 'dimensionless')
         coordTheta = yt.YTArray(coordTheta, 'dimensionless')
+        import healpy as hp 
+        #coordPhi, coordTheta = hp.pix2ang(Nbins, np.arange(hp.nside2npix(Nbins)))
         import loop
         import pdb
-        H,F = loop.big_loop(H,F,field,Nphi_max,Ntheta_max,min_phi_bin,min_theta_bin,Ntheta_bins,Nphi,Ntheta,verbose=True)
+        theta_middle = (max_theta + min_theta) / 2  #midpoints of angles in each cell for determining healpix indices 
+        phi_middle = (max_phi +  min_phi) / 2      #in loop.big_loop
+        theta_middle += np.pi/2 
+        phi_middle += np.pi
+        H,F,m = loop.big_loop(H,F,field,Nphi_max,Ntheta_max,min_phi_bin,min_theta_bin,Ntheta_bins,Nphi,Ntheta,theta_middle, phi_middle,verbose=True)
+        print(np.shape(H))
+        self.map = m
+        #everything from here on isn't used for healpix output and currently doesn't produce anything meaningful
         H.shape = Nphi_bins,Ntheta_bins
         F.shape = Nphi_bins,Ntheta_bins
 
@@ -313,10 +324,18 @@ def plot_image(coordPhi, coordTheta, Hin, fname, mask=None):
 def E_B_maps(Q_map, U_map): 
     I_map = np.sqrt(Q_map*Q_map + U_map*U_map)
     import healpy as hp 
-    alms = hp.sphtfunc.map2alm(I_map, Q_map, U_map)
+    alms = hp.sphtfunc.map2alm([I_map, Q_map, U_map])
     nside = hp.get_nside(I_map)
     E_map = hp.sphtfunc.alm2map(alms[1],nside)
     B_map = hp.sphtfunc.alm2map(alms[2],nside)
+    plt.clf()
+    hp.mollview(E_map)
+    hp.graticule()
+    plt.savefig("Emap.png")
+    plt.clf()
+    hp.mollview(B_map)
+    hp.graticule()
+    plt.savefig("Bmap.png")
     return E_map, B_map
 
 def rotationtest(): 
