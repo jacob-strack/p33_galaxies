@@ -59,12 +59,16 @@ ad.set_field_parameter("projax_z", projax[2])
 ds.add_field(name=("gas", "Q_integrand"), function=_Q_int, sampling_type = "cell", units = "g/cm**3", validators = ValidateParameter(["projax_x", "projax_y", "projax_z"]))
 ds.add_field(name=("gas","U_integrand"), function=_U_int, sampling_type = "cell", units = "g/cm**3", validators = ValidateParameter(["projax_x","projax_y","projax_z"]))
 print("test", ad.get_field_parameter("projax_z"))
-field = ad["U_integrand"].in_units("code_density")
+field = ad["density"]
 #ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True,Nbins=1024)
 #testing if projax works...
-ppp= s1p.s1p(ad,field, center=nar([0.5,0.5,0.5]), projax=[1,0,0], verbose=True, Nbins=N)
+ppp= s1p.s1p(ad,field, center=nar([0.5,0.5,0.5]), projax=[0,1,0], verbose=True, Nbins=N)
 H = gaussian_filter(ppp.H,2)
 import healpy as hp 
+plt.clf()
+hp.mollview(ppp.map)
+plt.savefig("zmap.png")
+plt.clf()
 #H = ppp.H
 
 print("H valid value", hp.pixelfunc.maptype(ppp.map))

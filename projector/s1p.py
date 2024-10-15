@@ -51,8 +51,10 @@ def make_phi_theta(xyz_p,center,projax):
     #phi_new = np.arctan2(y_new,x_new)
     #theta_new = np.arctan2(x_new,np.abs(z_new))
     #dcc change here
-    theta_new = np.arctan2(x_new,np.sqrt(z_new**2+y_new**2))
-    phi_new = np.arctan2(y_new,z_new)
+    #theta_new = np.arctan2(x_new,np.sqrt(z_new**2+y_new**2))
+    #phi_new = np.arctan2(y_new,z_new)
+    theta_new = np.arctan2(np.sqrt(y_new**2 + x_new**2),z_new)
+    phi_new = np.arctan2(y_new, x_new) + np.pi
     xyz_new = [x_new,y_new,z_new]
     if 0:
         pdb.set_trace()
@@ -136,7 +138,7 @@ class s1p():
         print("xyz maxs", xyz[0].max(), xyz[1].max(), xyz[2].max())
         #center works, projax is a dummy variable.  Presently hard coded along y.
         xyz_new,phi,theta = make_phi_theta(xyz,center,projax)
-        ok3 = np.sqrt( xyz_new[0]**2+xyz_new[1]**2+xyz_new[2]**2) > .005
+        ok3 = np.sqrt( xyz_new[0]**2+xyz_new[1]**2+xyz_new[2]**2) > 0.05
         print("xyz shape", np.shape(xyz_new))
         print(ok3.shape)
         print((~ok3).sum())
@@ -189,8 +191,8 @@ class s1p():
         minmin_phi  = min_phi[ok3].min() - eps
         maxmax_theta = max_theta[ok3].max() +eps
         maxmax_phi = max_phi[ok3].max() + eps
-        print("theta min/max" , minmin_theta + np.pi/2, maxmax_theta+np.pi/2)
-        print("phi min/max", minmin_phi + np.pi, maxmax_phi + np.pi)
+        print("theta min/max" , minmin_theta, maxmax_theta)
+        print("phi min/max", minmin_phi, maxmax_phi)
         #do i need to do this to get the right width of each bin?
         #phi_diff = np.minimum(np.abs(maxmax_phi - minmin_phi),np.abs(-2*np.pi + (maxmax_phi - minmin_phi)))
         dtheta = (maxmax_theta-minmin_theta)/(Nbins)
@@ -284,20 +286,29 @@ class s1p():
         import pdb
         theta_middle = (max_theta + min_theta) / 2  #midpoints of angles in each cell for determining healpix indices 
         phi_middle = (max_phi +  min_phi) / 2      #in loop.big_loop
-        theta_middle += np.pi/2 
-        phi_middle += np.pi
-        H,F,m = loop.big_loop(H,F,field,Nphi_max,Ntheta_max,min_phi_bin,min_theta_bin,Ntheta_bins,Nphi,Ntheta,theta_middle, phi_middle,verbose=True)
+        if 1: 
+            plt.clf()
+            plt.clf()
+            plt.hist(min_phi, bins = 100)
+            plt.savefig("minphis.png")
+            plt.clf()
+            plt.hist(max_phi, bins = 100)
+            plt.savefig("maxphis.png")
+            plt.clf()
+        print("phi_middle max/min", np.max(phi_middle), np.min(phi_middle))
+        print("theta_middle max/min", np.max(theta_middle), np.min(theta_middle))
+        H,F,m = loop.big_loop(H,F,field,Nphi_max,Ntheta_max,min_phi_bin,min_theta_bin,Ntheta_bins,Nphi,Ntheta,dtheta, dphi,max_theta_bin, max_phi_bin,min_theta,max_theta,min_phi,max_phi,verbose=True)
         print(np.shape(H))
         self.map = m
         #everything from here on isn't used for healpix output and currently doesn't produce anything meaningful
         H.shape = Nphi_bins,Ntheta_bins
         F.shape = Nphi_bins,Ntheta_bins
-
+        pdb.set_trace()
         self.coordPhi=coordPhi
         self.coordTheta=coordTheta
         self.H = H
         self.mask = F
-        #pdb.set_trace()
+        #m = loop.enzo_to_healpix(H,coordTheta,coordPhi, 3)
 def plot_image(coordPhi, coordTheta, Hin, fname, mask=None):
     H = Hin + 0 #make a copy
     #nrm = mpl.colors.Normalize(vmin=den[ok][den[ok]>0].min(),vmax=den[ok].max())
