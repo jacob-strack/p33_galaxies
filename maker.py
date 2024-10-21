@@ -62,7 +62,11 @@ print("test", ad.get_field_parameter("projax_z"))
 field = ad["density"]
 #ppp= s1p.s1p(cube, center=nar([0.5,-0.2,0.5]), verbose=True,Nbins=1024)
 #testing if projax works...
+<<<<<<< HEAD
 ppp= s1p.s1p(ad,field, center=nar([0.5,0.5,0.5]), projax=[0,1,0], verbose=True, Nbins=N)
+=======
+ppp= s1p.s1p(cube, center=nar([0.5,0.5,0.5]), projax=[0,1,0], verbose=True, Nbins=256)
+>>>>>>> e833a55 (maker)
 H = gaussian_filter(ppp.H,2)
 import healpy as hp 
 plt.clf()
