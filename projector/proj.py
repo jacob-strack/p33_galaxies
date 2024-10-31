@@ -35,9 +35,21 @@ def make_wire(N):
                 out[:,nx,ny]=1
     return out
 
+def make_xyz(cube,flat=False):
+    N = cube.shape[0]
+    print("cube shape",cube.size)
+    dx = 1./N
+    x,y,z = np.mgrid[0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx]
+    if flat:
+        x=x.flatten()
+        y=y.flatten()
+        z=z.flatten()
+    xyz = np.stack([x,y,z])
+    return xyz, dx*np.ones_like(xyz)
+
 def make_cube(N):
     dx = 1./N
-    x,y,z = np.mgrid[0:1:dx,0:1:dx,0:1:dx]
+    x,y,z = np.mgrid[0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx]
 
     cube = np.zeros_like(x)
     c = nar([0.2,0.8,0.4])
@@ -53,6 +65,35 @@ def make_cube(N):
     cube[ok2]=2
     #cube += 10*make_wire(N)
     return cube
+
+def make_cube_full(N):
+    cube = make_cube(N)
+    xyz, dxyz = make_xyz(cube,flat=True)
+    return cube.flatten(), xyz, dxyz
+
+def make_phi_theta(xyz,projax,center=None):
+    if center is not None:
+        center.shape=(3,1,1,1)
+        xyz_p  = xyz-center
+    else:
+        xyz_p = xyz
+    #ensure unit vector
+    r_proj = np.sqrt(projax[0]**2 + projax[1]**2 + projax[2]**2)
+    projax /= r_proj
+    theta = np.arccos(projax[2]) 
+    phi = np.arctan2(projax[1],projax[0])
+    #now get the rotated coordinate axes note that r hat is unit magnitude by definition here since projax is normalized  
+    z_p = projax
+    y_p = [-1*np.sin(phi),np.cos(phi),0] 
+    x_p = [np.cos(theta)*np.cos(phi), np.cos(theta)*np.sin(phi), -1*np.sin(theta)]
+    x_new = xyz_p[0]*x_p[0] + xyz_p[1]*x_p[1] + xyz_p[2]*x_p[2]
+    y_new = xyz_p[0]*y_p[0] + xyz_p[1]*y_p[1] + xyz_p[2]*y_p[2]
+    z_new = xyz_p[0]*z_p[0] + xyz_p[1]*z_p[1] + xyz_p[2]*z_p[2]
+    r_new = np.sqrt(x_new**2+y_new**2+z_new**2)
+    theta_new = np.arctan2(np.sqrt(y_new**2 + x_new**2),z_new)
+    phi_new = np.arctan2(y_new, x_new) + np.pi
+    xyz_new = np.stack([x_new,y_new,z_new])
+    return xyz_new, phi_new, theta_new
 
 def test1():
     cube = make_cube(128)
