@@ -1,6 +1,7 @@
 
 
 1.) pass in Q, xyz, dxyz, center, nhat, nhealpix
+1.5) Compute corners of zones.
 2.) Determine theta, phi for cube projected along nhat
 3.) Get exterior corners
     a.) theta_c, phi_c = mean of theta and phi

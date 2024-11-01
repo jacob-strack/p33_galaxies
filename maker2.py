@@ -10,7 +10,10 @@ reload(proj)
 
 if 1:
     cube, xyz, dxyz = proj.make_cube_full(1)
-    dxyz/=2
+    dxyz/=128
+    new_center = nar([0.15,0.0,-0.3])
+    new_center.shape=new_center.size,1
+    xyz += new_center
     proj_center = nar([.6, -1.5, 1.5])
 #proj_center = nar([0,0,0])
     #proj_axis   = nar([0,1,0],dtype='float')
