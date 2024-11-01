@@ -90,9 +90,11 @@ def make_phi_theta(xyz,projax,center=None):
     y_new = xyz_p[0]*y_p[0] + xyz_p[1]*y_p[1] + xyz_p[2]*y_p[2]
     z_new = xyz_p[0]*z_p[0] + xyz_p[1]*z_p[1] + xyz_p[2]*z_p[2]
     r_new = np.sqrt(x_new**2+y_new**2+z_new**2)
-    theta_new = np.arctan2(np.sqrt(y_new**2 + x_new**2),z_new)
-    phi_new = np.arctan2(y_new, x_new) + np.pi
-    #phi_new = np.arccos(x_new)
+    #theta_new = np.arctan2(np.sqrt(y_new**2 + x_new**2),z_new)
+    #phi_new = np.arctan2(y_new, x_new) + np.pi
+    ##phi_new = np.arccos(x_new)
+    theta_new = np.arccos(x_new/r_new)
+    phi_new = np.arctan2(z_new,y_new)
     xyz_new = np.stack([x_new,y_new,z_new])
     return xyz_new, phi_new, theta_new
 
