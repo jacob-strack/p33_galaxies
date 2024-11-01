@@ -60,6 +60,7 @@ def project(cube, xyz, dxyz, proj_center, proj_axis):
     #https://github.com/healpy/healpy/issues/393
     #
     for izone in range(ec_theta.shape[0]):
+        #this works.
         edge_theta=ec_theta[izone]
         edge_phi  =ec_phi[izone]
         xyzpoly = astropy.coordinates.spherical_to_cartesian(1,edge_theta,edge_phi)
@@ -67,17 +68,22 @@ def project(cube, xyz, dxyz, proj_center, proj_axis):
 
         ipix = hp.query_polygon(NSIDE,poly, inclusive=True)
 
+        from astropy_healpix import HEALPix
+        hp2 = HEALPix(nside=NSIDE, order='ring')
         n = 0
         for pix in ipix[n:n+1]:
-            edges = hp.boundaries(nside=NSIDE,pix=pix,step=1)
+            #THIS DOES NOT WORK.
+            #edges = hp.boundaries(nside=NSIDE,pix=pix,step=1)
+            ra, dec = hp2.boundaries_lonlat([pix],step=1)
             #print(edges.shape)
-            angles = astropy.coordinates.cartesian_to_spherical(*edges)
+            #angles = astropy.coordinates.cartesian_to_spherical(*edges)
             #print(angles)
             #ra,dec=hp.pixelfunc.vec2ang(edges.T, lonlat=True)
-            rad,ra,dec=angles
+            #rad,ra,dec=angles
 
-            print('edges',edges)
+            #print('edges',edges)
         #pdb.set_trace()
+        #This works except for ra,dec.
         plt.clf()
         plt.plot(edge_phi,edge_theta,c='g')
         for i in range(len(edge_phi)):
@@ -88,11 +94,12 @@ def project(cube, xyz, dxyz, proj_center, proj_axis):
         m[ipix]=m.max()
         hp.mollview(m, title="Mollview image RING")
         plt.plot(edge_theta,edge_phi,c='r')
-        print(edge_theta)
+        print('theta',edge_theta)
+        print('phi  ',edge_phi)
         #plt.plot(angles[1],angles[2],c='k')
-        plt.plot(dec,ra,c='k')
-        print(dec)
-        print(ra)
+        plt.plot(ra,dec,c='orange',linewidth=11)
+        print('dec ',dec)
+        print('ra  ',ra)
         plt.savefig('%s/moltest'%plot_dir)
         #pdb.set_trace()
 
