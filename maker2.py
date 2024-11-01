@@ -4,16 +4,21 @@ from starter2 import *
 import pdb
 import projector.s2p as s2p
 import projector.proj as proj
-#import healpy as hp
+import healpy as hp
 reload(s2p)
 reload(proj)
 
 if 1:
-    cube, xyz, dxyz = proj.make_cube_full(10)
+    cube, xyz, dxyz = proj.make_cube_full(1)
     dxyz/=2
-    proj_center = nar([0.5,0.5,0.5])
+    proj_center = nar([.6, -1.5, 1.5])
 #proj_center = nar([0,0,0])
-    proj_axis   = nar([0,1,0],dtype='float')
+    #proj_axis   = nar([0,1,0],dtype='float')
+    dcenter = nar([0.5]*3)-proj_center
+    proj_axis = -dcenter/(dcenter**2).sum()
+    #proj_axis=nar([0,1,1],dtype='float')
+    #proj_axis/=(proj_axis**2).sum()
+
     corners=s2p.project(cube,xyz,dxyz,proj_center,proj_axis)
 
 if 0:

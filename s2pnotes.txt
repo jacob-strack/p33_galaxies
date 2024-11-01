@@ -1,0 +1,52 @@
+
+
+1.) pass in Q, xyz, dxyz, center, nhat, nhealpix
+2.) Determine theta, phi for cube projected along nhat
+3.) Get exterior corners
+    a.) theta_c, phi_c = mean of theta and phi
+    b.) distance = (theta-theta_c)**2+(phi-phi_c)**2
+    c.) asrt = np.argsort(distance,axis=1)
+    d.) theta_exterior = np.take_along_axis(theta,asrt,axis=1)[...,2:]
+    e.) phi_exterior = np.take_along_axis(phi,asrt,axis=1)[...,2:]
+    f.) !!! One corner case of grid-aligned zones, visit later
+    g.) now we have EC = theta and phi for exterior corners.
+    h.) Sort EC in angle, do the same as Healpix (clockwise from SW)
+4.) For each zone (I hate putting this loop here)
+    a.) hp.query_polygon(inclusive=True) to get all rays
+    b.) For all rays
+        1.) get the corners of the ray (there's a function for that)
+        2.) RC = ray corners, sorted clockwise from SW.
+        3.) for each EC:
+            a.) EC in ray?  Fill InRay boolean list
+            b.) IN_POLY(point, list_of_polygon_points):
+                1.) D = (point - list_of_points)**2
+                2.) M = most distant point
+                3.) C = closest point
+                4.) Check if the line D-M crosses either C-C-1 or C-C+1
+                5.) If it does, its not in side.
+        3.) for each RC:
+            a.) RC in zone?  Fill InZone boolean list
+            b.) Call IN_POLY
+        4.) for each EC: really the segments between them
+            a.) if EC[i] in and EC[i+1] not in, StepInRay[i]=-1
+            b.) if EC[i] not in and EC[i+1] in, StepInRay[i]=+1
+            c.) Otherwise StepInRay=0
+        5.) for each RC: (really the segments between)
+            a.) Do the same to fill StepInZone
+        6.) Find crossings.  If sum(abs(StepInRay))>0 (there will be 2 or zero)
+            a.) Get the points where StepInRay[i] = +1
+            b.) Get the poins where  StepInZone[i] = -1
+            c.) Find the intersection of these two lines
+            d.) Repeate for StepInRay[i]=-1 and StepInZone=+1
+            e.) Intersections now has 2 points or no points
+        7.) Now we have booleans InRay(6), InZone(4), and Intersection(2)
+            a.) Collect all the Interior points
+        8.) A_intersection = sum(i=0,N) x[i]*(y[i+1]-y[i-1])
+        9.) A_zone = area of projected zone
+        10.) Q_intersect = Q*A_intersection/A_zone*ZoneVolume
+            a.) Should be the intersected volume times Q
+        11.) RayBin += Q_intersect/r**2
+            a.) r**2 should not be hard coded, sometimes we just want a sum.
+
+
+    
