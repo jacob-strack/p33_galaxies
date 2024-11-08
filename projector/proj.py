@@ -71,6 +71,32 @@ def make_cube_full(N):
     xyz, dxyz = make_xyz(cube,flat=True)
     return cube.flatten(), xyz, dxyz
 
+def unit_maker(v):
+    return v/np.sqrt((v**2).sum(axis=0))
+def checky_monkey(v1,v2, tolerance=1e-8):
+    diff = v1-v2
+    mag = (diff**2).sum(axis=0)
+    aligned = mag < tolerance
+    return aligned
+
+def check_aligned(corners,xyz):
+    #this does not work.
+    c0 = corners[...,0]
+    c1 = corners[...,1]
+    c2 = corners[...,2]
+    c3 = corners[...,3]
+    c4 = corners[...,4]
+    c01 = unit_maker(c1-c0)
+    c12 = unit_maker(c2-c1)
+    c34 = unit_maker(c4-c3)
+    nhat = unit_maker(xyz)
+    aligned = checky_monkey( c01, nhat)
+    aligned += checky_monkey( c12, nhat)
+    aligned += checky_monkey( c34, nhat)
+    pdb.set_trace()
+    return aligned
+
+
 def make_phi_theta(xyz,projax,center=None):
     if center is not None:
         center.shape=(3,1,1,1)
@@ -97,6 +123,40 @@ def make_phi_theta(xyz,projax,center=None):
     phi_new = np.arctan2(z_new,y_new)
     xyz_new = np.stack([x_new,y_new,z_new])
     return xyz_new, phi_new, theta_new
+
+def rotate(xyz,projax,center=None):
+    if center is not None:
+        center.shape=(3,1,1,1)
+        xyz_p  = xyz-center
+    else:
+        xyz_p = xyz
+    #ensure unit vector
+    r_proj = np.sqrt(projax[0]**2 + projax[1]**2 + projax[2]**2)
+    projax /= r_proj
+    theta = np.arccos(projax[2]) 
+    phi = np.arctan2(projax[1],projax[0])
+    #now get the rotated coordinate axes note that r hat is unit magnitude by definition here since projax is normalized  
+    z_p = projax
+    y_p = [-1*np.sin(phi),np.cos(phi),0] 
+    x_p = [np.cos(theta)*np.cos(phi), np.cos(theta)*np.sin(phi), -1*np.sin(theta)]
+    x_new = xyz_p[0]*x_p[0] + xyz_p[1]*x_p[1] + xyz_p[2]*x_p[2]
+    y_new = xyz_p[0]*y_p[0] + xyz_p[1]*y_p[1] + xyz_p[2]*y_p[2]
+    z_new = xyz_p[0]*z_p[0] + xyz_p[1]*z_p[1] + xyz_p[2]*z_p[2]
+    r_new = np.sqrt(x_new**2+y_new**2+z_new**2)
+    xyz_new = np.stack([x_new,y_new,z_new])
+    return xyz_new
+
+def obliqueproj(xyz_p, corner_p):
+    N = xyz_p.shape[1]
+    r_p = np.sqrt((xyz_p**2).sum(axis=0))
+    nhat = xyz_p/r_p
+    c_dot_n = (corner_p*nhat).sum(axis=0)
+    corner_pp = corner_p - c_dot_n*nhat + xyz_p
+    x_new,y_new,z_new = corner_pp
+    r_new = np.sqrt((corner_pp**2).sum(axis=0))
+    theta_new = np.arccos(x_new/r_new)
+    phi_new = np.arctan2(z_new,y_new)
+    return corner_pp, phi_new, theta_new
 
 def test1():
     cube = make_cube(128)
