@@ -73,7 +73,6 @@ if 0:
         #pw.zoom(16)
         pw.save('%s/galaxy'%plot_dir)
 
-if 1:
     dx_min = dxyz.min()
 
     proj_center = np.array([0.5]*3)+np.array([0,0,-1./32]) + dx_min/128
