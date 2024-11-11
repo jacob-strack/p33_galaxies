@@ -8,19 +8,21 @@ import healpy as hp
 reload(s2p)
 reload(proj)
 
-if 0:
+if 1:
     #GOOD TEST.
     #8 zones, looking along one of them.
     cube, xyz, dxyz = proj.make_cube_full(2)
     proj_center = nar([ 0.25,0.25,-1])
     #proj_center = nar([0.,0.,-1.,])
     proj_axis = nar([0.,0.,1.])
-    corners=s2p.project(cube,xyz,dxyz,proj_center,proj_axis, bucket=bucket)
+    corners=s2p.project(cube,xyz,dxyz,proj_center,proj_axis, bucket=bucket,
+                        molplot=True,moreplots=False)
 
-if 1:
+if 0:
     #strafe the camera around the zone
     cube, xyz, dxyz = proj.make_cube_full(1)
-    molplot=False
+    molplot=True
+    moreplots=True
     theta = np.linspace(np.pi/7,np.pi*5/6,10)-np.pi/2
     phi   = np.linspace(-np.pi,np.pi,10)
     #theta = theta[9:10] #broken
@@ -39,7 +41,8 @@ if 1:
             dcenter = proj_center-cube_center.flatten()
             proj_axis = -dcenter/(dcenter**2).sum()
             bucket={'theta':th,'phi':ph}
-            corners=s2p.project(cube,xyz,dxyz,proj_center,proj_axis, bucket=bucket,molplot=molplot)
+            corners=s2p.project(cube,xyz,dxyz,proj_center,proj_axis,
+                                bucket=bucket,molplot=molplot,moreplots=moreplots)
 
 
 if 0:
