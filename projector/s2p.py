@@ -6,12 +6,14 @@ import projector.proj as proj
 import healpy as hp
 import astropy
 import dtools.davetools as dt
+import shapely
 from shapely.geometry import Polygon
 
 
 def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=False, moreplots=False, NSIDE = 4):
 
     
+    verbose=True
     Nz = cube.size
     proj_center.shape=3,1
     xyz= xyz - proj_center
@@ -34,6 +36,7 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=False, 
     #Get projected theta and phi for each corner.
     #Get the 6 furthest from the center of projection
     #sort them in a clockwise fashion.
+    if verbose: print('corners')
     corners = xyz+shifter*dxyz
 
     #we'll need this later.
@@ -44,105 +47,123 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=False, 
     #four_corners = (np.abs(corners).sum(axis=2) - np.abs(corners.sum(axis=2)) >0).any(axis=0)
     four_corners = (np.abs(corners).sum(axis=2) - np.abs(corners.sum(axis=2)) >0).sum(axis=0) > 1
 
+    #this can be streamlined, taken out of make_phi_theta
+    if verbose: print('rotate')
     xyz_p = proj.rotate(xyz,proj_axis)
 
-    #
+    #the thing to accumulate
     rrr2 =  (xyz_p**2).sum(axis=0).flatten()
     zone_volume = dxyz.prod(axis=0).flatten()
     zone_emission = cube/rrr2*zone_volume
 
 
-    cor_p = proj.rotate(corners, proj_axis)
     #the orthographic projection is used to determine the exterior corners.
-    corners_oblique, phi_oblique, theta_oblique = proj.obliqueproj(xyz_p, cor_p)
+    if verbose: print('work')
+    #cor_p = proj.rotate(corners, proj_axis)
+    #corners_oblique, phi_oblique, theta_oblique = proj.obliqueproj(xyz_p, cor_p)
     corners_persp,phi_persp,theta_persp=proj.make_phi_theta(corners, proj_axis)
-    xyz_p.shape = 3,Nz
-    phi_cen=phi_oblique.mean(axis=1)
-    theta_cen=theta_oblique.mean(axis=1)
-    phi_cen.shape=phi_cen.size,1
-    theta_cen.shape=theta_cen.size,1
-    distance_oblique = (phi_oblique-phi_cen)**2 + (theta_oblique-theta_cen)**2
-    distance_persp = (phi_persp-phi_cen)**2 + (theta_persp-theta_cen)**2
-
-    #Decide if we're using perspective or orth projections
-    #distance = np.maximum(distance_oblique, distance_persp)
     if 0:
-        theta_use=theta_oblique
-        phi_use = phi_oblique
-        distance = distance_oblique
-    else:
-        theta_use=theta_persp
-        phi_use = phi_persp
-        distance = distance_persp
-    asrt_distance = np.argsort(distance,axis=1)
+        xyz_p.shape = 3,Nz
+        phi_cen=phi_oblique.mean(axis=1)
+        theta_cen=theta_oblique.mean(axis=1)
+        phi_cen.shape=phi_cen.size,1
+        theta_cen.shape=theta_cen.size,1
 
-    sorted_distance = np.take_along_axis(distance,asrt_distance,axis=1)
-    sorted_theta= np.take_along_axis(theta_use,asrt_distance,axis=1)
-    sorted_phi= np.take_along_axis(phi_use,asrt_distance,axis=1)
-    ec_theta = sorted_theta[...,2:]
-    ec_phi   = sorted_phi[...,2:]
-    #if there's only 4 corners, don't keep two points
-    keepers = np.ones_like(ec_phi,dtype='bool')
-    keepers = keepers.T
-    keepers[0,four_corners]=False
-    keepers[1,four_corners]=False
-    keepers = keepers.T
+        #Decide if we're using perspective or orth projections
+        if 0:
+            theta_use=theta_oblique
+            phi_use = phi_oblique
+            distance_oblique = (phi_oblique-phi_cen)**2 + (theta_oblique-theta_cen)**2
+            distance = distance_oblique
+        else:
+            theta_use=theta_persp
+            phi_use = phi_persp
+            distance_persp = (phi_persp-phi_cen)**2 + (theta_persp-theta_cen)**2
+            distance = distance_persp
+        #distance = np.maximum(distance_oblique, distance_persp)
 
-    #sort them clockwise.
-    ec_theta_cen = ec_theta.mean(axis=1)
-    ec_theta_cen.shape = Nz,1
-    ec_phi_cen = ec_phi.mean(axis=1)
-    ec_phi_cen.shape = Nz,1
-    psi = np.arctan2(ec_theta-ec_theta_cen,ec_phi- ec_phi_cen)
-    asrt_psi = np.argsort(psi,axis=1)
-    ec_theta = np.take_along_axis(ec_theta, asrt_psi, axis=1)
-    ec_phi =   np.take_along_axis(ec_phi, asrt_psi, axis=1)
-    psi2 = np.take_along_axis(psi,asrt_psi,axis=1)
-    keepers = np.take_along_axis(keepers,asrt_psi,axis=1)
+        if verbose: print('more sort')
+        asrt_distance = np.argsort(distance,axis=1)
+
+        sorted_distance = np.take_along_axis(distance,asrt_distance,axis=1)
+        sorted_theta= np.take_along_axis(theta_use,asrt_distance,axis=1)
+        sorted_phi= np.take_along_axis(phi_use,asrt_distance,axis=1)
+        ec_theta = sorted_theta[...,2:]
+        ec_phi   = sorted_phi[...,2:]
+        #if there's only 4 corners, don't keep two points
+        keepers = np.ones_like(ec_phi,dtype='bool')
+        keepers = keepers.T
+        keepers[0,four_corners]=False
+        keepers[1,four_corners]=False
+        keepers = keepers.T
+
+        #sort them clockwise.
+        ec_theta_cen = ec_theta.mean(axis=1)
+        ec_theta_cen.shape = Nz,1
+        ec_phi_cen = ec_phi.mean(axis=1)
+        ec_phi_cen.shape = Nz,1
+        psi = np.arctan2(ec_theta-ec_theta_cen,ec_phi- ec_phi_cen)
+        asrt_psi = np.argsort(psi,axis=1)
+        ec_theta = np.take_along_axis(ec_theta, asrt_psi, axis=1)
+        ec_phi =   np.take_along_axis(ec_phi, asrt_psi, axis=1)
+        psi2 = np.take_along_axis(psi,asrt_psi,axis=1)
+        keepers = np.take_along_axis(keepers,asrt_psi,axis=1)
 
 
     #From here, this needs to be in cython.
-    for izone in range(ec_theta.shape[0]):
-        print("Izone",izone)
-        #this works.
-        edge_theta=ec_theta[izone]
-        edge_phi  =ec_phi[izone]
-        #sometimes 6, sometimes 4 corners.
-        #This is a problem for truly stride-one vectorization.
-        edge_theta = edge_theta[keepers[izone]]
-        edge_phi = edge_phi[keepers[izone]]
+    for izone in range(Nz):
+        print("Izone/Nzone %d/%d = %0.2f"%(izone,Nz, izone/Nz) )
         quantity = zone_emission[izone] #q*V/r^2
+        all_theta = theta_persp[izone]
+        all_phi   = phi_persp[izone]
+
+        all_corners = np.stack([all_theta,all_phi])
+        corner_poly = Polygon(all_corners.T)
+        hull = shapely.convex_hull(corner_poly)
+        edge_theta, edge_phi = hull.exterior.xy
+        #the polygon comes out closed.
+        edge_theta = np.array(edge_theta)[:-1]
+        edge_phi = np.array(edge_phi)[:-1]
+        #pdb.set_trace()
+        if 0:
+            edge_theta=ec_theta[izone]
+            edge_phi  =ec_phi[izone]
+            #sometimes 6, sometimes 4 corners.
+            #This is a problem for truly stride-one vectorization.
+            edge_theta = edge_theta[keepers[izone]]
+            edge_phi = edge_phi[keepers[izone]]
 
         #healpy can't deal if there are colinear points.
         #Compute the area for every set of three points.  
         #If there are colinear points, reject the middle one.
-        for nroll in range(len(edge_theta)):
-            it=0
-            area = edge_theta[it  ]*(edge_phi[it+1]-edge_phi[it+2])+\
-                   edge_theta[it+1]*(edge_phi[it+2]-edge_phi[it+0])+\
-                   edge_theta[it+2]*(edge_phi[it+0]-edge_phi[it+1])
-            if np.abs(area) < 1e-6:
-                edge_theta = np.delete(edge_theta,1)
-                edge_phi = np.delete(edge_phi,1)
-            else:
-                edge_theta = np.roll(edge_theta,1)
-                edge_phi   = np.roll(edge_phi,1)
+        if 1:
+            for nroll in range(len(edge_theta)):
+                it=0
+                area = edge_theta[it  ]*(edge_phi[it+1]-edge_phi[it+2])+\
+                       edge_theta[it+1]*(edge_phi[it+2]-edge_phi[it+0])+\
+                       edge_theta[it+2]*(edge_phi[it+0]-edge_phi[it+1])
+                if np.abs(area) < 1e-6:
+                    edge_theta = np.delete(edge_theta,1)
+                    edge_phi = np.delete(edge_phi,1)
+                else:
+                    edge_theta = np.roll(edge_theta,1)
+                    edge_phi   = np.roll(edge_phi,1)
 
-        #check for convexity
-        #https://stackoverflow.com/questions/471962/how-do-i-efficiently-determine-if-a-polygon-is-convex-non-convex-or-complex
-        zxprod = np.zeros(edge_phi.size)
-        x=edge_theta
-        y=edge_phi
-        #if zprod changes sign, its not convex
-        for k in np.arange(zxprod.size)-2:
-            dx1 = x[k+1]-x[k]
-            dy1 = y[k+1]-y[k]
-            dx2 = x[k+2]-x[k+1]
-            dy2 = y[k+2]-y[k+1]
-            zxprod[k] = dx1*dy2 - dy1*dx2
-        if np.abs(zxprod).sum() - np.abs(zxprod.sum()) > 0:
-            print("Convex Structure, FIX ME VERY BAD")
-            continue
+            #check for convexity
+            #https://stackoverflow.com/questions/471962/how-do-i-efficiently-determine-if-a-polygon-is-convex-non-convex-or-complex
+            zxprod = np.zeros(edge_phi.size)
+            x=edge_theta
+            y=edge_phi
+            #if zprod changes sign, its not convex
+            for k in np.arange(zxprod.size)-2:
+                dx1 = x[k+1]-x[k]
+                dy1 = y[k+1]-y[k]
+                dx2 = x[k+2]-x[k+1]
+                dy2 = y[k+2]-y[k+1]
+                zxprod[k] = dx1*dy2 - dy1*dx2
+            if np.abs(zxprod).sum() - np.abs(zxprod.sum()) > 0:
+                print("Convex Structure, FIX ME VERY BAD")
+                continue
 
         if 1:
             #compute the polygon in 3d
@@ -153,19 +174,24 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=False, 
         #check for degenerate corners.  
         #for some reason I'm still getting a degenerate corner when I don't think I should.
         #https://healpix.sourceforge.io/html/Healpix_cxx/healpix__base_8cc_source.html line 1000
-        degenerate=False
-        for i in np.arange(poly.shape[1])-2:
-            normal = np.cross(poly[i], poly[i+1])
-            hnd = np.dot(normal, poly[i+2])
-            if np.abs(hnd) < 1e-10:
-                print("Degenerate Corner FIX ME",i)
-                degenerate=True
-        if degenerate:
-            continue
+        if 1:
+            degenerate=False
+            for i in np.arange(poly.shape[1])-2:
+                normal = np.cross(poly[i], poly[i+1])
+                hnd = np.dot(normal, poly[i+2])
+                if np.abs(hnd) < 1e-10:
+                    print("Degenerate Corner FIX ME",i)
+                    degenerate=True
+            if degenerate:
+                continue
 
         #the all important pixel query
 
-        my_pix = hp.query_polygon(NSIDE,poly, inclusive=True)
+        try:
+            my_pix = hp.query_polygon(NSIDE,poly, inclusive=True)
+        except:
+            print("MISSED A BAD CORNER")
+            continue
 
         #we'll also need this.  Can be streamlined.
         zone_poly = np.stack([edge_theta,edge_phi])
