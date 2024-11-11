@@ -8,18 +8,9 @@ import healpy as hp
 reload(s2p)
 reload(proj)
 
-if 0:
-    #GOOD TEST.
-    #8 zones, looking along one of them.
-    cube, xyz, dxyz = proj.make_cube_full(2)
-    proj_center = nar([ 0.25,0.25,-1])
-    #proj_center = nar([0.,0.,-1.,])
-    proj_axis = nar([0.,0.,1.])
-    corners=s2p.project(cube,xyz,dxyz,proj_center,proj_axis, bucket=bucket)
-
 if 1:
     #strafe the camera around the zone
-    cube, xyz, dxyz = proj.make_cube_full(1)
+    cube, xyz, dxyz = proj.make_cube_full(32, stick_or_sphere=1)
     molplot=False
     theta = np.linspace(np.pi/7,np.pi*5/6,10)-np.pi/2
     phi   = np.linspace(-np.pi,np.pi,10)
@@ -39,7 +30,15 @@ if 1:
             dcenter = proj_center-cube_center.flatten()
             proj_axis = -dcenter/(dcenter**2).sum()
             bucket={'theta':th,'phi':ph}
-            corners=s2p.project(cube,xyz,dxyz,proj_center,proj_axis, bucket=bucket,molplot=molplot)
+
+            image=s2p.project(cube,xyz,dxyz,proj_center,proj_axis, bucket=bucket,molplot=molplot, NSIDE=64)
+
+            plt.clf()
+            hp.mollview(image, title="Two Sticks")
+            prefix='%s/proj_sticks'%plot_dir
+            nplots = len(glob.glob(prefix+"*"))
+            plt.savefig(prefix+"%03d"%nplots)
+
 
 
 if 0:

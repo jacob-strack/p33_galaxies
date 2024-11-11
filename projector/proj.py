@@ -47,6 +47,13 @@ def make_xyz(cube,flat=False):
     xyz = np.stack([x,y,z])
     return xyz, dx*np.ones_like(xyz)
 
+def make_sphere(N):
+    dx = 1./N
+    x,y,z = np.mgrid[0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx]
+    cube = np.zeros_like(x)
+    r2 = x**2+y**2+z**2
+    cube[ r2<0.5**2]=1
+    return cube
 def make_cube(N):
     dx = 1./N
     x,y,z = np.mgrid[0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx,0.5*dx:1+0.5*dx:dx]
@@ -66,8 +73,12 @@ def make_cube(N):
     #cube += 10*make_wire(N)
     return cube
 
-def make_cube_full(N):
-    cube = make_cube(N)
+def make_cube_full(N, stick_or_sphere=0):
+
+    if stick_or_sphere==0:
+        cube = make_cube(N)
+    else:
+        cube = make_sphere(N)
     xyz, dxyz = make_xyz(cube,flat=True)
     return cube.flatten(), xyz, dxyz
 

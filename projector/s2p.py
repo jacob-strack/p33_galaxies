@@ -6,19 +6,26 @@ import projector.proj as proj
 import healpy as hp
 import astropy
 import dtools.davetools as dt
+from shapely.geometry import Polygon
 
 
-def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
+def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=False, moreplots=False, NSIDE = 4):
 
     
     Nz = cube.size
     proj_center.shape=3,1
     xyz= xyz - proj_center
-    if 1:
-        #this shift puts them in an order that makes sense to draw lines
-        shifter = np.array([[[-0.5, -0.5, +0.5, +0.5,  0.5, +0.5, -0.5, -0.5]],
-                            [[-0.5, -0.5, -0.5, -0.5,  0.5, +0.5, +0.5, +0.5]],
-                            [[-0.5,  0.5, +0.5, -0.5, -0.5, +0.5, +0.5, -0.5]]])
+
+    #make the final map
+
+    NPIX = hp.nside2npix(NSIDE)
+    final_map = np.zeros(NPIX)
+    
+
+    #this shift puts them in an order that makes sense to draw lines
+    shifter = np.array([[[-0.5, -0.5, +0.5, +0.5,  0.5, +0.5, -0.5, -0.5]],
+                        [[-0.5, -0.5, -0.5, -0.5,  0.5, +0.5, +0.5, +0.5]],
+                        [[-0.5,  0.5, +0.5, -0.5, -0.5, +0.5, +0.5, -0.5]]])
 
     dxyz.shape = 3,Nz,1
     xyz.shape = 3,Nz,1
@@ -38,6 +45,13 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
     four_corners = (np.abs(corners).sum(axis=2) - np.abs(corners.sum(axis=2)) >0).sum(axis=0) > 1
 
     xyz_p = proj.rotate(xyz,proj_axis)
+
+    #
+    rrr2 =  (xyz_p**2).sum(axis=0).flatten()
+    zone_volume = dxyz.prod(axis=0).flatten()
+    zone_emission = cube/rrr2*zone_volume
+
+
     cor_p = proj.rotate(corners, proj_axis)
     #the orthographic projection is used to determine the exterior corners.
     corners_oblique, phi_oblique, theta_oblique = proj.obliqueproj(xyz_p, cor_p)
@@ -87,9 +101,9 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
     keepers = np.take_along_axis(keepers,asrt_psi,axis=1)
 
 
-    NSIDE = 4
     #From here, this needs to be in cython.
     for izone in range(ec_theta.shape[0]):
+        print("Izone",izone)
         #this works.
         edge_theta=ec_theta[izone]
         edge_phi  =ec_phi[izone]
@@ -97,7 +111,7 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
         #This is a problem for truly stride-one vectorization.
         edge_theta = edge_theta[keepers[izone]]
         edge_phi = edge_phi[keepers[izone]]
-        print('Ncorners',len(edge_theta))
+        quantity = zone_emission[izone] #q*V/r^2
 
         #healpy can't deal if there are colinear points.
         #Compute the area for every set of three points.  
@@ -107,9 +121,7 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
             area = edge_theta[it  ]*(edge_phi[it+1]-edge_phi[it+2])+\
                    edge_theta[it+1]*(edge_phi[it+2]-edge_phi[it+0])+\
                    edge_theta[it+2]*(edge_phi[it+0]-edge_phi[it+1])
-            print("area",area)
             if np.abs(area) < 1e-6:
-                print("POPPER")
                 edge_theta = np.delete(edge_theta,1)
                 edge_phi = np.delete(edge_phi,1)
             else:
@@ -128,12 +140,41 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
             dx2 = x[k+2]-x[k+1]
             dy2 = y[k+2]-y[k+1]
             zxprod[k] = dx1*dy2 - dy1*dx2
-        print(zxprod)
+        if np.abs(zxprod).sum() - np.abs(zxprod.sum()) > 0:
+            print("Convex Structure, FIX ME VERY BAD")
+            continue
 
+        if 1:
+            #compute the polygon in 3d
+            xyzpoly = astropy.coordinates.spherical_to_cartesian(1,np.pi/2-edge_theta,edge_phi)
+            xyzpoly = np.array(xyzpoly)
+            poly = np.array(xyzpoly).T
 
+        #check for degenerate corners.  
+        #for some reason I'm still getting a degenerate corner when I don't think I should.
+        #https://healpix.sourceforge.io/html/Healpix_cxx/healpix__base_8cc_source.html line 1000
+        degenerate=False
+        for i in np.arange(poly.shape[1])-2:
+            normal = np.cross(poly[i], poly[i+1])
+            hnd = np.dot(normal, poly[i+2])
+            if np.abs(hnd) < 1e-10:
+                print("Degenerate Corner FIX ME",i)
+                degenerate=True
+        if degenerate:
+            continue
+
+        #the all important pixel query
+
+        my_pix = hp.query_polygon(NSIDE,poly, inclusive=True)
+
+        #we'll also need this.  Can be streamlined.
+        zone_poly = np.stack([edge_theta,edge_phi])
+        q = Polygon(zone_poly.T)
+        zone_area = q.area
+        zone_column_density = quantity/zone_area
 
         #plot the points we'll use.
-        if 1:
+        if moreplots:
             fig,ax1=plt.subplots(1,1,figsize=(8,8))
             ax1.plot(phi_use[izone],theta_use[izone])
             ax1.plot(edge_phi, edge_theta,c='r')
@@ -148,44 +189,12 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
             for nd, dd in enumerate(d):
                 ax1.text(phi_use[izone][nd], theta_use[izone][nd],"%0.3e"%dd)
 
-
-
             prefix = '%s/cubeproj'%plot_dir
             nplot = len(glob.glob(prefix+"*"))
             fig.savefig(prefix+"%03d"%nplot)
             plt.close(fig)
             #pdb.set_trace()
-
-        if 0:
-            #compute the polygon in 3d
-            xyzpoly = astropy.coordinates.spherical_to_cartesian(1,np.pi/2-edge_theta,edge_phi)
-            xyzpoly = np.array(xyzpoly)
-            poly = np.array(xyzpoly).T
-            print(poly.shape)
-        if 1:
-            r=1
-            y = r*np.cos(edge_phi)*np.sin(edge_theta)
-            z = r*np.sin(edge_phi)*np.sin(edge_theta)
-            x = r*np.cos(edge_theta)
-            poly = np.stack([x,y,z]).T
-            r = np.sqrt(x**2+y**2+z**2)
-
-
-
-        #check for degenerate corners.  
-        #for some reason I'm still getting a degenerate corner when I don't think I should.
-        #https://healpix.sourceforge.io/html/Healpix_cxx/healpix__base_8cc_source.html line 1000
-        for i in np.arange(poly.shape[1])-2:
-            normal = np.cross(poly[i], poly[i+1])
-            hnd = np.dot(normal, poly[i+2])
-            print(hnd)
-            if np.abs(hnd) < 1e-10:
-                print("Degenerate Corner",i)
-                print(poly[i])
-                print(poly[i+1])
-                print(poly[i+2])
         
-        if 1:
             #plot the polygon
             fig = plt.figure()
             ax = plt.axes(projection='3d')
@@ -201,15 +210,10 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
                 fig.savefig(prefix+"%03d"%nplot)
             plt.close(fig)
 
-        return
-
-        my_pix = hp.query_polygon(NSIDE,poly, inclusive=True)
-        #print(my_pix)
 
         if molplot:
             #temp plot stuff
             plt.clf()
-            NPIX = hp.nside2npix(NSIDE)
             m = np.arange(NPIX)
             m[my_pix]=m.max()
             hp.mollview(m, title="Mollview image RING")
@@ -220,13 +224,53 @@ def project(cube, xyz, dxyz, proj_center, proj_axis,bucket=None, molplot=True):
             ######yes this works
             xyz = hp.boundaries(NSIDE, ipix, step=1)
             theta, phi = hp.vec2ang(xyz.T)
-            ######
+
+            ray_poly = np.stack([theta,phi])
+            p = Polygon(ray_poly.T)
+            intersection = p.intersection(q)
+            area = intersection.area
+
+            #the final quantity = q*V/A*intersection/r^2
+            net_light=area*zone_column_density
+            final_map[ipix] += net_light
+            #final_map[ipix] = 1
+
+            #
+            # plotting 
+            #
             if molplot:
                 hp.projscatter(theta,phi,c='k')
+
+            if moreplots:
+                fig,ax=plt.subplots(1,1)
+                ax.plot(*q.exterior.xy)
+                ax.plot(*p.exterior.xy)
+                ax.plot(*intersection.exterior.xy)
+                #ax.plot(theta,phi)
+                ##ax.plot(edge_theta,edge_phi)
+                #pdb.set_trace()
+                prefix = '%s/intersector_'%plot_dir
+                nplot = len(glob.glob(prefix+"*"))
+                fig.savefig(prefix+"%03d"%nplot)
+
+            #if I decide to roll my own:
+            #2.) InZone
+            #3.) CrossInPixel
+            #4.) CrossInZone
+            #5.) Sort both
+            #6.) Intersection 1
+            #7.) Intersection 2
+            #8.) Collect interior points
+            #9.) sort interior points clockwise
+            #10.) area of interior points
+            #11.) Add the right thing to the destination plot.
+            ######
+
 
         if molplot:
             #finish plotting
             prefix='%s/moltest'%plot_dir
             nplots = len(glob.glob(prefix+"*"))
             plt.savefig(prefix+"%03d"%nplots)
+    return final_map
         
