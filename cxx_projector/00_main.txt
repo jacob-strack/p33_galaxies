@@ -1,0 +1,23 @@
+The basic paradigm is one thread per node does the easy stuff, and we use
+OpenMP to parallelize on each node.  So basically this is an OpenMP code, plus
+one step of MPI to gather the final map.
+Each grid has primitive variables P, and we are after a derived quantity Q.
+Presently Q must be local, no ghost zones, since we don't want to have to build
+the ghost zone tool.
+
+Actions:
+1.) parse_parameter
+2.) parse_hierarchy (one thread per node)
+3.) distribute_grids (programatic, no communication)
+4.) read_grids       (read P)
+5.) zero_under_subgrid
+6.) make_quantity    (on the grid, construct Q.)
+7.) serialize        (make flat arrays of Q, xyz, dxyz)
+8.) project          (OpenMP parallel)
+9.) collect_map      (MPI parallel collection)
+
+Objects:
+1.) grid    (holds grid information; primitives P; read; serialize; create Q; zero_under_subgrid)
+2.) field   (field information object.  Each primitive gets one. Q gets one that knows how to create Q)
+3.) hierarchy_entry (pointers to grid, next_grid_next_level, next_grid_this_level)
+4.) map     (the final map.  Should know how to reduce itself to one core.)

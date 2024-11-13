@@ -1,0 +1,1 @@
+Collect the map using MPI all_reduce.

@@ -1,0 +1,2 @@
+This is OMP parallel.
+Should follow the python version.

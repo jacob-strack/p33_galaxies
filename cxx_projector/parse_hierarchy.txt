@@ -1,0 +1,5 @@
+Read data0000.hierarchy (or whatever)
+Each node (one thread per node) open the file and creates a grid for each grid
+in the hierarchy file.
+Needs to read Left, Right, StartIndex, EndIndex, NextGrid pointers.  
+Look at ReadAllData in Enzo. 

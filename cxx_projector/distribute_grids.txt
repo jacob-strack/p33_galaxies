@@ -1,0 +1,7 @@
+Each main thread (one per node) decides what grids it gets.
+In Enzo, grid_id starts with all the root grid tiles, then is in creation order.
+For now, our grids are pretty regular in size, so we can simply do:
+my_grid_list = (grid_id_list % total_node_count == my_processor_number)
+
+Another choice is to create a list of work_per_grid and walk down the grid list
+giving each node approximately the same amount of work.  

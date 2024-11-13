@@ -1,0 +1,2 @@
+Each grid needs to produce a flat array containing all the grids, w/o
+under-subgrid.  Returns only Q, xyz, dxyz.

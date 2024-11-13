@@ -1,0 +1,2 @@
+Each grid needs to know how to read itself.  
+Take from New_Group_Grid_Read_Grid, but make it suck less.

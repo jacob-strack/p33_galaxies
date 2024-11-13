@@ -1,0 +1,20 @@
+
+1.) Write a simple code that uses OMP and MPI to compute pi.  Test the hybrid
+parallelism.  Should set something up on just one thread per node, do some work
+using OMP, and collect some result using MPI.
+2.) Write the hierarchy parser.  Fill the grid array with the important
+coordinates.
+3.) Write the distributer.  Each node gets some subset of grids, should be
+balanced.  Doesn't matter a ton, to be frank.
+4.) Write the grid reader.  Make it better than the Enzo reader.
+5.) Write the field object and quantity maker.  
+6.) Write the zero_under_subgrid code.
+7.) Write the serializer.
+8.) Figure out the right computational geometry library to use.  We need a
+convex hull and polygon intersection tools.  Might as well make sure it has a
+delauny triangulation when I eventually decide to do it that way.  Probably
+qhull.
+9.) Re-code the projector.  Do it on one node.
+10.) Write the map collector.
+11.) ???
+12.) Profit.

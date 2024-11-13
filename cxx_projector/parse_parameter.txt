@@ -1,0 +1,2 @@
+Parse the projector parameter file to get the location of the data.
+Get the data location and the quantity Q to produce.
