@@ -12,7 +12,6 @@ int main(int argc, char *argv[])
     MPI_Comm nodecomm, mastercomm; //communicators for master and node level
     MPI_Comm_rank(MPI_COMM_WORLD, &globalrank); 
     MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, globalrank,MPI_INFO_NULL,&nodecomm); //create node communicator split from world communicator
-    MPI_Comm_rank(nodecomm, &localrank); //get global 
     MPI_Comm_split(MPI_COMM_WORLD, localrank, globalrank, &mastercomm);//create master communicator split from world
     MPI_Comm_rank(mastercomm, &localrank); //get local rank
     MPI_Comm_free(&nodecomm);
@@ -24,6 +23,7 @@ int main(int argc, char *argv[])
     omp_set_num_threads(1); //number of threads for each processor
     int count = 10000; //just keep adding zeros until int overflows huh  
     int count_in = 0;
+    int final_count, final_ans; 
     int ans = 0; //global values to be used with MPI Reduce
     int total_count = 0; 
     srand (static_cast <unsigned> (time(0))); //seed random
@@ -37,10 +37,15 @@ int main(int argc, char *argv[])
             count_in++; //increment if within circle
         }
     }
-    MPI_Reduce(&count_in, &ans, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD); //total points in circle
-    MPI_Reduce(&count, &total_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD); //total points in square
+    //1) Reduce from nodecomm to mastercomm
+    MPI_Reduce(&count_in, &ans, 1, MPI_INT, MPI_SUM, 0, mastercomm); 
+    MPI_Reduce(&count, &total_count, 1, MPI_INT, MPI_SUM, 0, mastercomm); 
+    //2) Reduce from mastercomm to world
+    MPI_Reduce(&ans, &final_ans, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD); 
+    MPI_Reduce(&total_count, &final_count, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD); 
+    //calculate approximation once on rank 0
     if(globalrank == 0){
-        float pi = 4.0 * static_cast<float>(ans) / static_cast<float>(total_count); //calculate answer on global rank zero only
+        float pi = 4.0 * static_cast<float>(final_ans) / static_cast<float>(final_count); //calculate answer on global rank zero only
         cout << "points in circle: " << ans << endl; 
         cout << "total points in square: " << total_count << endl; 
         cout << pi << endl;
