@@ -101,7 +101,7 @@ class grid
 		//friend functions
 		friend int parse_hierarchy(const char *filename, int lower_grid, int upper_grid, grid localgrid[],int num_grids, int nodenum); 
 		friend int ReadListOfInts(FILE *fptr, int N, int num[], int TestGridID);
-		friend int distribute_grids(int num_nodes, int global_rank, const char *filename);
+		friend int distribute_grids(grid grids[],int num_nodes, int global_rank, const char *filename);
 };
 
 grid::grid()
@@ -377,7 +377,6 @@ int parse_hierarchy(const char *filename, int lower_grid, int upper_grid, grid l
     while(TestGridID < num_grids){
     //read grid header
 	if(fscanf(fptr,"\nGrid = %d\n", &TestGridID) == 1){
-		cout << "TestGridID: " << TestGridID << endl;
 		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			count++;
 			cout << "new grid id: " << TestGridID << " nodenum: " << nodenum << endl; 
@@ -579,19 +578,12 @@ int parse_hierarchy(const char *filename, int lower_grid, int upper_grid, grid l
         cout << "GridID: " << i << "count2: " << count2 << endl; */
 	}
     }
-	//Now at this point all the variables should be in their correct states
-	//call grid constructor
-	//it can have default values, set them now
-	for(int i = 0; i < num_grids; i++){
-        //cout << i << endl;
-		localgrid[i].PrintAllData();	
-	}
 	return(1);
 
 }
 
 
-int Distribute_Grids(int num_nodes, int global_rank, const char *filename){
+int Distribute_Grids(grid grids[],int num_nodes, int global_rank, const char *filename){
 	//determining the total number of grids 
 	string line;
 	ifstream file(filename);
@@ -606,7 +598,6 @@ int Distribute_Grids(int num_nodes, int global_rank, const char *filename){
             }
     }
 	int total_grids = CurrentGridID;
-	grid grids[total_grids]; //array of grids to be filled by parsing .hierarchy file
 	int lower_grid = node_num * (total_grids / num_nodes) + 1; //lower bound of indices of grids to read on each proc 
 	int upper_grid = (node_num + 1) * (total_grids / num_nodes); //upper bound of indices of grids to read on each proc
     if(total_grids % 2 == 1 and node_num == num_nodes - 1){ //catch last grid if odd number of total grids

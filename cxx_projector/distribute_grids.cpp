@@ -5,13 +5,14 @@
 #include "simple_grid.h"
 #include <mpi.h>  
 
-int Distribute_Grids(int num_nodes, int total_grids, int global_rank, const char* filename); 
+//int Distribute_Grids(int num_nodes, int total_grids, int global_rank, const char* filename); 
 
 int main(int argc, char *argv[]){
 	int globalrank, localrank; 
     int num_nodes;
     ifstream file("time0000.hierarchy"); 
 	int total_grids = 10; 
+    grid localgrids[2000];
 	MPI_Init(&argc, &argv);
 	MPI_Comm nodecomm, mastercomm; //communicators for master and node level
 	MPI_Comm_rank(MPI_COMM_WORLD, &globalrank); //get global rank 
@@ -36,7 +37,10 @@ int main(int argc, char *argv[]){
 	if(localrank == 0){
 		cout << "num nodes: " << num_nodes << endl;
 		cout << "node number: " << globalrank / num_nodes << endl;
-		Distribute_Grids(num_nodes, total_grids, globalrank/num_nodes, "time0000.hierarchy");  
+		Distribute_Grids(localgrids, num_nodes, globalrank, "time0000.hierarchy");  
+        for(int i = 0; i < 2000; i++){
+            localgrids[i].PrintAllData();
+        }
 	}
 	MPI_Comm_free(&mastercomm);
 	MPI_Finalize();
@@ -44,7 +48,7 @@ int main(int argc, char *argv[]){
 
 }
 
-int Distribute_Grids(int num_nodes, int total_grids, int node_num, const char *filename){
+/*int Distribute_Grids(int num_nodes, int total_grids, int node_num, const char *filename){
 	//determining the total number of grids 
 	string line;
 	ifstream file(filename);
@@ -69,4 +73,4 @@ int Distribute_Grids(int num_nodes, int total_grids, int node_num, const char *f
     cout << "upper_grid num: " << upper_grid << endl;
 	parse_hierarchy(filename, lower_grid, upper_grid, grids, total_grids, node_num);
 	return 1; 
-}
+}*/
