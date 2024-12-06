@@ -13,6 +13,7 @@
 
 #include<iostream>
 #include<cstring>
+#include<hdf5.h>
 using namespace std;
 
 class grid
@@ -39,9 +40,13 @@ class grid
 		int NumberOfParticles; 
 		int NumberOfActiveParticles; 
 		int GravityBoundaryType; 
-		int *NextGridThisLevel; 
-		int *NextGridNextLevel;
-		float *BaryonField[20]; //pointers to BaryonFields 
+		grid *NextGridThisLevel;  
+		grid *NextGridNextLevel;
+		float *BaryonField[20]; //pointers to BaryonFields
+        int *isRefined;
+        int NextGridNextLevelID; 
+        int NextGridThisLevelID;
+        int ProcessorNumber; 
 
 
 	public: //member functions
@@ -60,7 +65,7 @@ class grid
 		int SetTime(float myTime); 
 		int SetSubgridsAreStatic(int mySubgridsAreStatic); 
 		int SetNumberOfBaryonFields(int myNumberOfBaryonFields); 
-		int SetFieldType(int myFieldType[100]); 
+		int SetFieldType(int myFieldType[100]);
 		int SetBaryonFileName(char *myBaryonFileName); 
 		int SetCourantSafetyNumber(float myCourantSafetyNumber); 
 		int SetPPMFlatteningParameter(int myPPMFlatteningParameter); 
@@ -69,8 +74,11 @@ class grid
 		int SetNumberOfParticles(int myNumberOfParticles); 
 		int SetNumberOfActiveParticles(int myNumberOfActiveParticles);
 	    int SetGravityBoundaryType(int myGravityBoundaryType); 
-		int SetNextGridThisLevel(int *myNextGridThisLevel); 
-		int SetNextGridNextLevel(int *myNextGridNextLevel);
+		int SetNextGridThisLevel(grid *myNextGridThisLevel); 
+		int SetNextGridNextLevel(grid *myNextGridNextLevel);
+        int SetNextGridNextLevelID(int myNextGridNextLevelID); 
+        int SetNextGridThisLevelID(int myNextGridThisLevelID); 
+        int SetProcessorNumber(int myProcessorNumber); 
 
 		//Accessor Routines
 		int GetGridID();
@@ -85,7 +93,7 @@ class grid
 		float GetTime(); 
 		int GetSubgridsAreStatic(); 
 		int GetNumberOfBaryonFields(); 
-		int* GetFieldType(); 
+		int* GetFieldType();
 		char* GetBaryonFileName(); 
 		float GetCourantSafetyNumber(); 
 		int GetPPMFlatteningParameter(); 
@@ -94,15 +102,39 @@ class grid
 		int GetNumberOfParticles(); 
 		int GetNumberOfActiveParticles(); 
 		int GetGravityBoundaryType();
-		int* GetNextGridThisLevel(); 
-		int* GetNextGridNextLevel();
-	    void PrintAllData();	
-		
+		grid* GetNextGridThisLevel(); 
+		grid* GetNextGridNextLevel();
+	    void PrintAllData();
+        int GetNextGridThisLevelID(); 
+        int GetNextGridNextLevelID();
+        int GetProcessorNumber(); 
+
 		//friend functions
-		friend int parse_hierarchy(const char *filename, int lower_grid, int upper_grid, grid localgrid[],int num_grids, int nodenum); 
+		friend int parse_hierarchy(const char *filename, grid localgrid[], int nodenum); 
 		friend int ReadListOfInts(FILE *fptr, int N, int num[], int TestGridID);
 		friend int distribute_grids(grid grids[],int num_nodes, int global_rank, const char *filename);
+        friend int read_dataset(grid grids[], int size, int global_rank);
+        friend int isRefinedMaster(grid* current_grid);
+        friend int isRefinedWorker(grid* current_grid, grid* subgrid);
+        friend int FindGridID(grid grids[], int found_grids, int GridID); 
 };
+
+int GetNumberOfGrids(const char* filename); 
+
+int GetNumberOfGrids(const char* filename){
+	string line;
+	ifstream file(filename);
+	int TestGridID = -1;
+	int CurrentGridID = -1;  
+    while(getline(file, line)){
+            if(sscanf(line.c_str(), "\nGrid = %d\n", &TestGridID) == 1){
+               if(TestGridID > CurrentGridID){
+                    CurrentGridID = TestGridID;
+                }
+            }
+    }
+    return CurrentGridID; 
+}
 
 grid::grid()
 {
@@ -257,17 +289,31 @@ int grid::SetGravityBoundaryType(int myGravityBoundaryType){
 	return 1;
 }
 
-int grid::SetNextGridThisLevel(int *myNextGridThisLevel){
-	if(*myNextGridThisLevel == 0){NextGridThisLevel = nullptr;}	
+int grid::SetNextGridThisLevel(grid *myNextGridThisLevel){
 	NextGridThisLevel = myNextGridThisLevel; 
 	return 1;
 }
 
-int grid::SetNextGridNextLevel(int *myNextGridNextLevel){
-	if(myNextGridNextLevel == 0){NextGridNextLevel = nullptr;}
-	else{NextGridNextLevel = myNextGridNextLevel;} 
+int grid::SetNextGridNextLevel(grid *myNextGridNextLevel){
+	NextGridNextLevel = myNextGridNextLevel;
 	return 1;
-}	
+}
+
+int grid::SetNextGridThisLevelID(int myNextGridThisLevelID){
+    NextGridThisLevelID = myNextGridThisLevelID;
+    return 1;
+}
+
+int grid::SetNextGridNextLevelID(int myNextGridNextLevelID){
+    NextGridNextLevelID = myNextGridNextLevelID;
+    return 1;
+}
+
+int grid::SetProcessorNumber(int myProcessorNumber){
+    ProcessorNumber = myProcessorNumber; 
+    return 1;
+}
+
 
 int grid::GetGridID(){return GridID;}
 int grid::GetTask(){return Task;}
@@ -290,12 +336,15 @@ int grid::GetPPMSteepeningParameter(){return PPMSteepeningParameter;}
 int grid::GetNumberOfParticles(){return NumberOfParticles;}
 int grid::GetNumberOfActiveParticles(){return NumberOfActiveParticles;}
 int grid:: GetGravityBoundaryType(){return GravityBoundaryType;}
-int* grid::GetNextGridThisLevel(){return NextGridThisLevel;}
-int* grid::GetNextGridNextLevel(){return NextGridNextLevel;}
+grid* grid::GetNextGridThisLevel(){return NextGridThisLevel;}
+grid* grid::GetNextGridNextLevel(){return NextGridNextLevel;}
+int grid::GetNextGridThisLevelID(){return NextGridThisLevelID;}
+int grid::GetNextGridNextLevelID(){return NextGridNextLevelID;}
+int grid::GetProcessorNumber(){return ProcessorNumber;}
 
 //function to print all data a grid has, useful for debugging
 void grid::PrintAllData(){
-	if(GridID != 0){
+if(GridID > 0){
 	std::cout << "GRID SUMMARY" << std::endl;
 	std::cout << "GridID: " << GridID << std::endl; 
 	std::cout << GridID << "Task: " << Task << std::endl; 
@@ -331,15 +380,18 @@ void grid::PrintAllData(){
         cout << GridID << "NextGridThisLevel: NULL" << endl;
     }
     else{
-	    std::cout << GridID << "NextGridThisLevel: " << *NextGridThisLevel << std::endl; 
+	    std::cout << GridID << "NextGridThisLevel: " << NextGridThisLevel->GridID << std::endl; 
     }
     if(NextGridNextLevel == NULL){ 
         std::cout << GridID << "NextGridNextLevel: NULL" << endl;
     }
     else{
-        std::cout << GridID << "NextGridNextLevel: " << *NextGridNextLevel << std::endl; 
+        std::cout << GridID << "NextGridNextLevel: " << NextGridNextLevel->GridID << std::endl; 
     } 
-	}
+    std::cout << "NextGridThisLevelID: " << NextGridThisLevelID << endl;
+    std::cout << "NextGridNextLevelID: " << NextGridNextLevelID << endl;
+    std::cout << "ProcessorNumber: " << ProcessorNumber << endl;
+}	
 
 }
 
@@ -354,9 +406,20 @@ int ReadListOfInts(FILE *fptr, int N, int nums[], int TestGridID){
 	return 1;
 }
 
+int FindGridID(grid grids[], int found_grids, int GridID){
+    int index = -1;
+   for(int i = 0; i < found_grids; i++){
+        if(grids[i].GetGridID() == GridID){
+            index = i;
+        }
+    }
+   return index; 
+}
+
 //function that goes through .hierarchy file and populates grid objects with data
-int parse_hierarchy(const char *filename, int lower_grid, int upper_grid, grid localgrid[], int num_grids, int nodenum){
+int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 	//declarations for IDs and data 
+    int num_grids = GetNumberOfGrids(filename);
 	int TestGridID, NextGridThisLevelID, NextGridNextLevelID, Task, GridRank, SubgridsAreStatic, NumberOfBaryonFields, PointerGridID;
 	int GridStartIndex[3], GridEndIndex[3], GridDimension[3], PPMFlatteningParameter, PPMDiffusionParameter, PPMSteepeningParameter; 
 	int NumberOfParticles, GravityBoundaryType; 
@@ -373,210 +436,183 @@ int parse_hierarchy(const char *filename, int lower_grid, int upper_grid, grid l
 		cout << "Opened file: " << filename << endl;
 	}
 	TestGridID = -1;
-    int count = 0; //count of populated grids on current node 
+    int count = -1; //count of populated grids on current node 
     while(TestGridID < num_grids){
     //read grid header
 	if(fscanf(fptr,"\nGrid = %d\n", &TestGridID) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			count++;
-			cout << "new grid id: " << TestGridID << " nodenum: " << nodenum << endl; 
 			if(localgrid[count].SetGridID(TestGridID) != 1){
 				cout << "FIRE IN TESTGRIDID SET" << endl;
 			}
-		}
+		
 	}
     //start parsing other lines from .hierarchy
 	if(fscanf(fptr, "Task = %d\n", &Task) == 1){ 
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetTask(Task) != 1){
 				cout << "FIRE IN TASK SET" << endl;
 			}
-		}
 	}
 	if(fscanf(fptr, "GridRank = %d\n", &GridRank) == 1){ 
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetGridRank(GridRank) != 1){
 				cout << "FIRE IN GRID RANK SET" << endl;
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "GridDimension = %d %d %d\n", &GridDimension[0], &GridDimension[1], &GridDimension[2]) == 3){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetGridDimension(GridDimension) != 1){
 				cout << "FIRE IN GRID DIMENSION SET" << endl;	
 			}	
-		}
+		
 	
 	}
 	//read StartIndex
 	if(fscanf(fptr, "GridStartIndex = %d %d %d\n", &GridStartIndex[0], &GridStartIndex[1], &GridStartIndex[2]) == 3){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetGridStartIndex(GridStartIndex) != 1){
 				cout << "FIRE IN GRID START INDEX SET" << endl;
 			}
-		}	
+			
 	} 
 	//read EndIndex 
 	if(fscanf(fptr, "GridEndIndex = %d %d %d\n", &GridEndIndex[0], &GridEndIndex[1], &GridEndIndex[2]) == 3){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetGridEndIndex(GridEndIndex) != 1){
 				cout << "FIRE IN GRID END INDEX SET" << endl;
 			}	
-		}
+		
 	}	
 	//read LeftEdge 
 	if(fscanf(fptr, "GridLeftEdge = %f %f %f\n", &GridLeftEdge[0], &GridLeftEdge[1], &GridLeftEdge[2]) == 3){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetGridLeftEdge(GridLeftEdge) != 1){
 				cout << "FIRE IN GRID LEFT EDGE SET" << endl; 
 			}
-		}
+		
 	}
 	//read RightEdge 
 	if(fscanf(fptr, "GridRightEdge = %f %f %f\n", &GridRightEdge[0], &GridRightEdge[1], &GridRightEdge[2]) == 3){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetGridRightEdge(GridRightEdge) != 1){
 				cout << "FIRE IN GRID RIGHT EDGE SET" << endl; 
 			}
-		}	
+			
 	}
 	if(fscanf(fptr, "Time = %f\n", &Time) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetTime(Time) != 1){
 				cout << "FIRE IN TIME SET" << endl; 
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "SubgridsAreStatic = %f\n", &SubgridsAreStatic) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetSubgridsAreStatic(SubgridsAreStatic) != 1){
 				cout << "FIRE IN SUBGRIDSARESTATIC SET" << endl;
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "NumberOfBaryonFields = %d\n", &NumberOfBaryonFields) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetNumberOfBaryonFields(NumberOfBaryonFields) != 1){
 				cout << "FIRE IN NUMBEROFBARYONFIELDS SET" << endl;	
 			}
-		}	
+			
 	}
     //parse first part of field type line
 	fscanf(fptr, "FieldType = "); 
 	ReadListOfInts(fptr, NumberOfBaryonFields, FieldType, TestGridID);//read array of field IDs 
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetFieldType(FieldType) != 1){
 				cout << "FIRE IN FIELDTYPE SET" << endl;
 			}
-		}	
+			
 	
 	
 	if(fscanf(fptr, "BaryonFileName = %s\n", name) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetBaryonFileName(name) != 1){
 				cout << "FIRE IN BARYONFILENAME SET" << endl;
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "CourantSafetyNumber = %f\n", &CourantSafetyNumber) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetCourantSafetyNumber(CourantSafetyNumber) != 1){
 				cout << "FIRE IN COURANTSAFETYNUMBER SET" << endl;
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "PPMFlatteningParameter = %d\n", &PPMFlatteningParameter) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetPPMFlatteningParameter(PPMFlatteningParameter) != 1){
 				cout << "FIRE IN PPMFLATTENINGPARAMETER SET" << endl;
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "PPMDiffusionParameter = %d\n", &PPMDiffusionParameter) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetPPMDiffusionParameter(PPMDiffusionParameter) != 1){
 				cout << "FIRE IN PPMDIFFUSIONPARAMETER SET" << endl;
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "PPMSteepeningParameter = %d\n", &PPMSteepeningParameter) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetPPMSteepeningParameter(PPMSteepeningParameter) != 1){
 				cout << "FIRE IN PPMSTEEPENINGPARAMETER SET" << endl;
 			}
-		}
+		
 	}
 	if(fscanf(fptr, "NumberOfParticles = %d\n", &NumberOfParticles) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetNumberOfParticles(NumberOfParticles) != 1){
 				cout << "FIRE IN NUMBEROFPARTICLES SET" << endl;
 			}	
-		}
+		
 	}
 	int NumberOfActiveParticles; 
 	if(fscanf(fptr, "NumberOfActiveParticles = %d\n", &NumberOfActiveParticles) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetNumberOfActiveParticles(NumberOfActiveParticles) != 1){
 				cout << "FIRE IN NUMBEROFACTIVEPARTICLES SET" << endl;
 			}
-		}
+		
 	}
 	fscanf(fptr, "PresentParticleTypes = \n");
 	fscanf(fptr, "ParticleTypeCounts = \n");
 	if(fscanf(fptr, "GravityBoundaryType = %d\n", &GravityBoundaryType) == 1){
-		if(TestGridID >= lower_grid && TestGridID <= upper_grid){
 			if(localgrid[count].SetGravityBoundaryType(GravityBoundaryType) != 1){
 				cout << "FIRE IN GRAVITYBOUNDARYTYPE SET" << endl;
 			}
-		}
+		
 	}
+    //read ID of NextGridThisLevel
 	if(fscanf(fptr, "Pointer: Grid[%d]->NextGridThisLevel = %d\n", &PointerGridID, &NextGridThisLevelID) == 2){
-		if(PointerGridID >= lower_grid && PointerGridID <= upper_grid){
-			int *ptr = new int(); //this is bad practice with memory allocation 
-			*ptr = NextGridThisLevelID; 
-			if(localgrid[count].SetNextGridThisLevel(ptr) != 1){
+            for(int i = 0; i <= count; i++){
+                if(localgrid[i].GetGridID() == PointerGridID){
+			if(localgrid[FindGridID(localgrid, count + 1, PointerGridID)].SetNextGridThisLevelID(NextGridThisLevelID) != 1){
 				cout << "FIRE IN NEXTGRIDTHISLEVEL SET" << endl;
 			}
-		}	
+                }
+            }
+		//}	
 	}
-	//read pointer for NextGridNextLevel 
-    //this needs a loop since at each GridID, there may be more than one NextGridNextLevel pointer
-    //that needs to be set or changed 
+    //read ID of NextGridNextLevel 
 	while(fscanf(fptr, "Pointer: Grid[%d]->NextGridNextLevel = %d\n", &PointerGridID, &NextGridNextLevelID) == 2){
-		for(int i = 0; i < count; i++){
+		for(int i = 0; i <= count; i++){
 			if(localgrid[i].GetGridID() == PointerGridID){
-				int *ptr = new int(); 
-				*ptr = NextGridNextLevelID; 
-				if(localgrid[count].SetNextGridNextLevel(ptr) != 1){
+                if(localgrid[i].SetNextGridNextLevelID(NextGridNextLevelID) != 1){
 					cout << "FIRE IN NEXTGRIDNEXTLEVEL" << endl;
 				}
 			}
 
 		}	
 
-		/*if(TestGridID == localgrid[i].GetGridID()){
-			int *ptr = new int(); //again bad practice, maybe fix later
-			*ptr = NextGridNextLevelID;
-			if(localgrid[count].SetNextGridNextLevel(ptr) != 1){
-				cout << "FIRE IN NEXTGRIDNEXTLEVEL" << endl;
-			}
-            continue;
-		}
-        if(TestGridID < lower_grid || TestGridID > upper_grid){continue;}
-        if(TestGridID >= lower_grid && TestGridID <= upper_grid){
-            int *ptr = new int();
-			*ptr = NextGridNextLevelID;
-            for(int j = 0; j < num_grids; j++){
-                if(TestGridID == localgrid[j].GetGridID() && localgrid[j].GetGridID() != 0){
-                    cout << "localgrid rank being edited " << localgrid[j].GetGridID() << " " << i << endl; 
-                    localgrid[j].SetNextGridNextLevel(ptr); 
-                    continue; 
-                }
-            }
-        }
-        count2++;
-        cout << "GridID: " << i << "count2: " << count2 << endl; */
 	}
+    }
+    //Now actually set the pointers for NGTL and NGNL
+    for(int i = 0; i < count; i++){
+        int ind = FindGridID(localgrid, count, localgrid[i].GetNextGridThisLevelID());
+        grid *ptr; 
+        if(ind == -1){ptr = NULL;}
+        else{ptr = localgrid + ind;}
+        if(localgrid[i].SetNextGridThisLevel(ptr) != 1){
+            cout << "CANT SET NGTL PTR RIGHT" << endl;
+        }
+    }
+    for(int i = 0; i < count; i++){
+        int ind = FindGridID(localgrid, count, localgrid[i].GetNextGridNextLevelID());
+        grid *ptr; 
+        if(ind == -1){ptr = NULL;}
+        else{ptr = localgrid + ind;}
+        if(localgrid[i].SetNextGridNextLevel(ptr) != 1){
+            cout << "CANT SET NGNL PTR RIGHT" << endl;
+        }
     }
 	return(1);
 
@@ -585,27 +621,107 @@ int parse_hierarchy(const char *filename, int lower_grid, int upper_grid, grid l
 
 int Distribute_Grids(grid grids[],int num_nodes, int global_rank, const char *filename){
 	//determining the total number of grids 
-	string line;
-	ifstream file(filename);
 	int node_num = global_rank / num_nodes; 
-	int TestGridID = -1;
-	int CurrentGridID = -1;  
-    while(getline(file, line)){
-            if(sscanf(line.c_str(), "\nGrid = %d\n", &TestGridID) == 1){
-               if(TestGridID > CurrentGridID){
-                    CurrentGridID = TestGridID;
-                }
-            }
-    }
-	int total_grids = CurrentGridID;
+	int total_grids = GetNumberOfGrids(filename);
 	int lower_grid = node_num * (total_grids / num_nodes) + 1; //lower bound of indices of grids to read on each proc 
 	int upper_grid = (node_num + 1) * (total_grids / num_nodes); //upper bound of indices of grids to read on each proc
     if(total_grids % 2 == 1 and node_num == num_nodes - 1){ //catch last grid if odd number of total grids
         upper_grid++; 
     }
-    cout << "lower grid num: " << lower_grid << endl; 
-    cout << "upper_grid num: " << upper_grid << endl;
-    //fill grid objects in range for given node 
-	parse_hierarchy(filename, lower_grid, upper_grid, grids, total_grids, node_num); 
+    //set proc num to read files from disk 
+    for(int i = 0; i < total_grids; i++){
+        if(grids[i].GetGridID() >= lower_grid && grids[i].GetGridID() <= upper_grid){
+            grids[i].SetProcessorNumber(global_rank);
+        }
+    }
 	return 1; 
 }
+
+int read_dataset(grid localgrids[], int num_grids, int global_rank){
+    //get length of localgrids
+    cout << "localgrids length: " << num_grids << endl; 
+    //loop over localgrids
+    for(int i = 0; i < num_grids; i++){
+        char *filename = localgrids[i].GetBaryonFileName(); 
+        int *FieldType = localgrids[i].GetFieldType(); 
+        int *dims = localgrids[i].GetGridDimension();
+        int rank = localgrids[i].GetGridRank();
+        int GridID = localgrids[i].GetGridID();
+        int ProcessorNumber = localgrids[i].GetProcessorNumber();
+        int densnum = 0; //field labels following enzo convention 
+        int B1num = 49; 
+        int B2num = 50; 
+        int B3num = 51; 
+        int labels[4] = {densnum, B1num, B2num, B3num}; 
+        static const char* const names[] = {"Density", "Bx", "By", "Bz"};//I am ashamed
+        if(GridID == 0){continue;}
+        if(ProcessorNumber != global_rank){continue;} //only read on the processor number to which the grid is assigned
+        //checking that all the field labels that I expect exist and were read from .hierarchy
+        for(int i = 0; i < 4; i++){
+            for(int j = 0; j < 100; j++){
+                if(FieldType[j] == labels[i]){break;}
+                if(j == 99){
+                    cout << "CANT FIND FIELD LABEL" << endl;
+                    return 0;
+                }
+            }
+        }
+        const char *field_name = "Bz";
+        char group_name[100]; 
+        sprintf(group_name,"Grid%08d",GridID); 
+        //Now field labels are sure to exist, start reading fields from .cpu files
+        hid_t file_id, group_id, dset_id; 
+        hid_t h5_status; 
+        file_id = H5Fopen(filename, H5F_ACC_RDONLY,H5P_DEFAULT);
+        group_id = H5Gopen2(file_id, group_name,H5P_DEFAULT);
+        int size = 1; 
+        for(int j = 0; j < rank; j++){size *= dims[j];}
+        for(int field = 0; field < 4; field++){
+            localgrids[i].BaryonField[field] = new float[size];
+            for(int k = 0; k < size; k++){
+                localgrids[i].BaryonField[field][k] = 0; 
+            }
+        dset_id = H5Dopen(group_id, names[field], H5P_DEFAULT); 
+        h5_status = H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, localgrids[i].BaryonField[field]);
+        }
+        if(i==1){
+        for(int x = 0; x < size; x++){
+        }
+        cout << endl;
+        }
+        h5_status = H5Fclose(file_id);
+    }
+    
+    localgrids[0].PrintAllData(); 
+    cout << "localgrids[0] GridID: " << localgrids[0].GridID << endl;
+    cout << "localgrids[0] NextLevelID: " << localgrids[0].NextGridThisLevelID << endl;
+    isRefinedMaster(localgrids);
+    
+    return 1;
+}
+
+//currently getting stuck in an never-ending path
+int isRefinedWorker(grid* currentgrid, grid* subgrid){
+    int *dims = currentgrid->GetGridDimension();
+    int size = 1;
+    for(int i = 0; i < currentgrid->GetGridRank(); i++){size *= dims[i];}
+    if(currentgrid->isRefined == NULL){currentgrid->isRefined = new int[size];} //create isRefined field is it doesn't exist
+    if(subgrid != NULL){for(int i = 0; i < size; i++){currentgrid->isRefined[i] = 1;}}//isRefined field = 1 if subgrid exists
+    else{for(int i = 0; i < size; i++){currentgrid->isRefined[i] = 0;}}
+    return 1;
+}
+
+int isRefinedMaster(grid* currentgrid){
+    cout << currentgrid->GridID << " " << currentgrid->NextGridNextLevelID << endl;
+    //if NGNL doesn't exist for first grid the loop never iterates 
+    //might need to call this differently in read_grids
+    grid *temp = currentgrid->NextGridNextLevel; //pointer to NextGridNextLevel
+    cout << temp << endl;
+    while(temp != NULL){ 
+        isRefinedWorker(currentgrid, temp);//Set subgrid field 
+        isRefinedMaster(temp);//recursive call (set next level down the hierarchy) 
+        temp = currentgrid->NextGridThisLevel;//move across one in the hierarchy 
+    }
+    return 1;
+}
+

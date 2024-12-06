@@ -35,8 +35,7 @@ int main(int argc, char *argv[]){
     }*/
     //total_grids = CurrentGridID;
 	if(localrank == 0){
-		cout << "num nodes: " << num_nodes << endl;
-		cout << "node number: " << globalrank / num_nodes << endl;
+        parse_hierarchy("time0000.hierarchy", localgrids, globalrank/num_nodes);
 		Distribute_Grids(localgrids, num_nodes, globalrank, "time0000.hierarchy");  
         for(int i = 0; i < 2000; i++){
             localgrids[i].PrintAllData();
