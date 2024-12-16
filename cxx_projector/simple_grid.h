@@ -14,6 +14,7 @@
 #include<iostream>
 #include<cstring>
 #include<hdf5.h>
+#include<math.h>
 using namespace std;
 
 class grid
@@ -46,7 +47,8 @@ class grid
         int *isRefined;
         int NextGridNextLevelID; 
         int NextGridThisLevelID;
-        int ProcessorNumber; 
+        int ProcessorNumber;
+        float *CellWidth[3]; //hardcoded 3D for now 
 
 
 	public: //member functions
@@ -78,7 +80,7 @@ class grid
 		int SetNextGridNextLevel(grid *myNextGridNextLevel);
         int SetNextGridNextLevelID(int myNextGridNextLevelID); 
         int SetNextGridThisLevelID(int myNextGridThisLevelID); 
-        int SetProcessorNumber(int myProcessorNumber); 
+        int SetProcessorNumber(int myProcessorNumber);
 
 		//Accessor Routines
 		int GetGridID();
@@ -142,7 +144,7 @@ grid::grid()
 	GridID = 0; 
 	Task = 0;
 	GridRank = 0;
-        GridLevel = 0; 
+    GridLevel = 0; 
 	Time = 0.0; 
 	SubgridsAreStatic = 0; 
 	NumberOfBaryonFields = 0; 
@@ -613,6 +615,16 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
         if(localgrid[i].SetNextGridNextLevel(ptr) != 1){
             cout << "CANT SET NGNL PTR RIGHT" << endl;
         }
+   }
+    //set cellwidth array 
+    for(int i = 0; i < count; i++){
+        for(int j = 0; j < localgrid[i].GridRank; j++){
+            localgrid[i].CellWidth[j] = new float[localgrid[i].GridDimension[j]];
+            float delta = (localgrid[i].GridRightEdge[j] - localgrid[i].GridLeftEdge[j]) / localgrid[i].GridDimension[j];
+            for(int k = 0; k < localgrid[i].GetGridDimension()[j]; k++){
+               localgrid[i].CellWidth[j][k] = k*delta + delta/2;  
+            }
+        }
     }
 	return(1);
 
@@ -642,6 +654,7 @@ int read_dataset(grid localgrids[], int num_grids, int global_rank){
     cout << "localgrids length: " << num_grids << endl; 
     //loop over localgrids
     for(int i = 0; i < num_grids; i++){
+        int NumberOfFieldsToRead = 4;
         char *filename = localgrids[i].GetBaryonFileName(); 
         int *FieldType = localgrids[i].GetFieldType(); 
         int *dims = localgrids[i].GetGridDimension();
@@ -676,18 +689,13 @@ int read_dataset(grid localgrids[], int num_grids, int global_rank){
         group_id = H5Gopen2(file_id, group_name,H5P_DEFAULT);
         int size = 1; 
         for(int j = 0; j < rank; j++){size *= dims[j];}
-        for(int field = 0; field < 4; field++){
+        for(int field = 0; field < NumberOfFieldsToRead; field++){
             localgrids[i].BaryonField[field] = new float[size];
             for(int k = 0; k < size; k++){
                 localgrids[i].BaryonField[field][k] = 0; 
             }
         dset_id = H5Dopen(group_id, names[field], H5P_DEFAULT); 
         h5_status = H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, localgrids[i].BaryonField[field]);
-        }
-        if(i==1){
-        for(int x = 0; x < size; x++){
-        }
-        cout << endl;
         }
         h5_status = H5Fclose(file_id);
     }
@@ -700,27 +708,48 @@ int read_dataset(grid localgrids[], int num_grids, int global_rank){
     return 1;
 }
 
-//currently getting stuck in an never-ending path
 int isRefinedWorker(grid* currentgrid, grid* subgrid){
     int *dims = currentgrid->GetGridDimension();
     int size = 1;
+    //redo since its all not 0 or 1
+    //count how many zones in parent grid
     for(int i = 0; i < currentgrid->GetGridRank(); i++){size *= dims[i];}
     if(currentgrid->isRefined == NULL){currentgrid->isRefined = new int[size];} //create isRefined field is it doesn't exist
+    //code mostly ripped from Grid_ZeroSolutionUnderSubgrid
+    int subgrid_start[3], subgrid_end[3]; 
+    for(int i = 0; i < currentgrid->GetGridRank(); i++){
+        int NumberOfGhostZones = currentgrid->GridStartIndex[i]; 
+        int Left = currentgrid->GridLeftEdge[i] - currentgrid->CellWidth[i][0] * NumberOfGhostZones;
+        int Right = currentgrid->GridRightEdge[i] - currentgrid->CellWidth[i][currentgrid->GridDimension[i]-1] * NumberOfGhostZones;
+        //get where other grids overlap this grid and its ghost zones 
+        if(subgrid->GridRightEdge[i] <= Left || subgrid->GridLeftEdge[i] >= Right){return 1;} //case of no overlap 
+       subgrid_start[i] = nearbyint((subgrid->GridLeftEdge[i] - Left) / currentgrid->CellWidth[i][0]); 
+       subgrid_end[i] = nearbyint((subgrid->GridRightEdge[i] - Left) / currentgrid->CellWidth[i][0]) - 1;
+
+        subgrid_start[i] = max(subgrid_start[i],0); 
+        subgrid_end[i] = min(subgrid_end[i], currentgrid->GridDimension[i]-1); 
+    }
+    for(int k = subgrid_start[2]; k <= subgrid_end[2]; k++)
+        for(int j = subgrid_start[1]; j <= subgrid_end[1]; j++)
+            for(int i = subgrid_start[0]; i <= subgrid_end[0]; i++){
+               int index = (k*currentgrid->GridDimension[1] + j)*currentgrid->GridDimension[0] + i;
+               currentgrid->isRefined[index] = 1; 
+            }
     if(subgrid != NULL){for(int i = 0; i < size; i++){currentgrid->isRefined[i] = 1;}}//isRefined field = 1 if subgrid exists
     else{for(int i = 0; i < size; i++){currentgrid->isRefined[i] = 0;}}
     return 1;
 }
 
-int isRefinedMaster(grid* currentgrid){
-    cout << currentgrid->GridID << " " << currentgrid->NextGridNextLevelID << endl;
-    //if NGNL doesn't exist for first grid the loop never iterates 
-    //might need to call this differently in read_grids
-    grid *temp = currentgrid->NextGridNextLevel; //pointer to NextGridNextLevel
-    cout << temp << endl;
-    while(temp != NULL){ 
-        isRefinedWorker(currentgrid, temp);//Set subgrid field 
-        isRefinedMaster(temp);//recursive call (set next level down the hierarchy) 
-        temp = currentgrid->NextGridThisLevel;//move across one in the hierarchy 
+int isRefinedMaster(grid* grids){
+    for(int i = 0; i < 1780; i++){
+        grid *currentgrid = grids + i;
+        //if NGNL doesn't exist for first grid the loop never iterates 
+        //might need to call this differently in read_grids
+        grid *temp = currentgrid->NextGridNextLevel; //pointer to NextGridNextLevel
+        while(temp != NULL){ 
+            isRefinedWorker(currentgrid, temp);//Set subgrid field 
+            temp = currentgrid->NextGridThisLevel;//move across one in the hierarchy 
+        }
     }
     return 1;
 }
