@@ -501,7 +501,7 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 			}
 		
 	}
-	if(fscanf(fptr, "SubgridsAreStatic = %f\n", &SubgridsAreStatic) == 1){
+	if(fscanf(fptr, "SubgridsAreStatic = %d\n", &SubgridsAreStatic) == 1){
 			if(localgrid[count].SetSubgridsAreStatic(SubgridsAreStatic) != 1){
 				cout << "FIRE IN SUBGRIDSARESTATIC SET" << endl;
 			}
@@ -637,6 +637,10 @@ int Distribute_Grids(grid grids[],int num_nodes, int global_rank, const char *fi
 	int total_grids = GetNumberOfGrids(filename);
 	int lower_grid = node_num * (total_grids / num_nodes) + 1; //lower bound of indices of grids to read on each proc 
 	int upper_grid = (node_num + 1) * (total_grids / num_nodes); //upper bound of indices of grids to read on each proc
+    cout << "node_num " << node_num << endl; 
+    cout << "lower " << lower_grid << endl;
+    cout << "upper " << upper_grid << endl;
+    cout << "total grids " << total_grids << endl;
     if(total_grids % 2 == 1 and node_num == num_nodes - 1){ //catch last grid if odd number of total grids
         upper_grid++; 
     }
@@ -700,7 +704,7 @@ int read_dataset(grid localgrids[], int num_grids, int global_rank){
         h5_status = H5Fclose(file_id);
     }
     
-    localgrids[0].PrintAllData(); 
+    //localgrids[0].PrintAllData(); 
     cout << "localgrids[0] GridID: " << localgrids[0].GridID << endl;
     cout << "localgrids[0] NextLevelID: " << localgrids[0].NextGridThisLevelID << endl;
     isRefinedMaster(localgrids);
@@ -746,9 +750,12 @@ int isRefinedMaster(grid* grids){
         //if NGNL doesn't exist for first grid the loop never iterates 
         //might need to call this differently in read_grids
         grid *temp = currentgrid->NextGridNextLevel; //pointer to NextGridNextLevel
-        while(temp != NULL){ 
+        cout << "isRefinedMaster i " << i << endl;
+        while(temp != NULL){
+            cout << "temp not null " << endl;
+            temp->PrintAllData();
             isRefinedWorker(currentgrid, temp);//Set subgrid field 
-            temp = currentgrid->NextGridThisLevel;//move across one in the hierarchy 
+            temp = temp->NextGridThisLevel;//move across one in the hierarchy changed currentgrid-> to temp->   
         }
     }
     return 1;
