@@ -17,6 +17,47 @@
 #include<math.h>
 using namespace std;
 
+class field
+{
+    private: 
+        float* data; 
+        char* field_name; 
+        int GridID;
+
+    public: 
+        field(); //constructor JACOB MAKE THE DESTRUCTOR ALREADY DONT BE CRINGE
+
+    //accessor functions 
+    float* GetFieldData(); 
+    char* GetFieldName(); 
+    int GetFieldGridID(); 
+
+    //setter routines 
+    int SetFieldName(char *myfieldfame); 
+    int SetFieldGridID(int myfieldGridID); 
+
+};
+
+field::field(){
+    data = NULL; 
+    field_name = NULL; 
+    GridID = 0; 
+}
+
+float* field::GetFieldData(){return data;}
+char* field::GetFieldName(){return field_name;}
+int field::GetFieldGridID(){return GridID;}
+
+int field::SetFieldName(char* myfieldname){
+    field_name = myfieldname; 
+    return 1; 
+}
+
+int field::SetFieldGridID(int myfieldGridID){
+    GridID = myfieldGridID; 
+    return 1; 
+}
+
 class grid
 {
 	private: //member data 
@@ -49,10 +90,17 @@ class grid
         int NextGridThisLevelID;
         int ProcessorNumber;
         float *CellWidth[3]; //hardcoded 3D for now 
-
+        int field_size;
+        double LengthUnits;
+        double MassUnits; 
+        double TimeUnits; 
+        float **fields;
+        float *xyz[3]; 
+        float *dxyz[3]; 
 
 	public: //member functions
 		grid(); //constructor which sets everything to defaults
+        int make_xyz(); 
 
 		//setter routines 
 		int SetGridID(int myGridID);
@@ -81,6 +129,10 @@ class grid
         int SetNextGridNextLevelID(int myNextGridNextLevelID); 
         int SetNextGridThisLevelID(int myNextGridThisLevelID); 
         int SetProcessorNumber(int myProcessorNumber);
+        int SetSize(int mysize);
+        int SetLengthUnits(double myLengthUnits);
+        int SetMassUnits(double myMassUnits); 
+        int SetTimeUnits(double myTimeUnits); 
 
 		//Accessor Routines
 		int GetGridID();
@@ -109,7 +161,11 @@ class grid
 	    void PrintAllData();
         int GetNextGridThisLevelID(); 
         int GetNextGridNextLevelID();
-        int GetProcessorNumber(); 
+        int GetProcessorNumber();
+        int GetSize();
+        double GetLengthUnits();
+        double GetMassUnits(); 
+        double GetTimeUnits(); 
 
 		//friend functions
 		friend int parse_hierarchy(const char *filename, grid localgrid[], int nodenum); 
@@ -118,7 +174,10 @@ class grid
         friend int read_dataset(grid grids[], int size, int global_rank);
         friend int isRefinedMaster(grid* current_grid);
         friend int isRefinedWorker(grid* current_grid, grid* subgrid);
-        friend int FindGridID(grid grids[], int found_grids, int GridID); 
+        friend int FindGridID(grid grids[], int found_grids, int GridID);
+        friend int readFieldsMaster(grid* grids); 
+        friend int readFieldsWorker(grid* grid); 
+        friend int SetUnits(const char *filename, grid currentgrid); 
 };
 
 int GetNumberOfGrids(const char* filename); 
@@ -166,9 +225,63 @@ grid::grid()
 		FieldType[i] = 104; //This is what field undefined is in enzo's grid so following that convention
 	}
 	NextGridThisLevel = NULL; 
-	NextGridNextLevel = NULL; 
+	NextGridNextLevel = NULL;
+    field_size = 0;
 	//BaryonFileName = "None"; 	
 
+}
+
+int grid::make_xyz(){
+    if(field_size == 0){
+        for(int i = 0; i < GetGridRank(); i++){field_size *= GridDimension[i];}
+    }
+    for(int dim = 0; dim < 3; dim++){
+        dxyz[dim] = new float[field_size]; 
+        xyz[dim] = new float[field_size];
+    }
+    float GridWidth[3];
+    for(int dim = 0; dim < GetGridRank(); dim++){
+        GridWidth[dim] = GridRightEdge[dim] - GridLeftEdge[dim]; 
+    }
+    for(int k = 0; k < GridDimension[2]; k++){
+        for(int j = 0; j < GridDimension[1]; j++){
+            for(int i = 0; i < GridDimension[0]; i++){
+                int index = (k*GridDimension[1] + j)*GridDimension[0] + i;     
+                for(int dim = 0; dim < GridRank; dim++){
+                    dxyz[dim][index] = GridWidth[dim]/GridDimension[dim];  
+                xyz[0][index] = GridDimension[dim] * i + dxyz[index][0];  
+                xyz[1][index] = GridDimension[dim] * j + dxyz[index][1];  
+                xyz[2][index] = GridDimension[dim] * k + dxyz[index][2];  
+                }
+            }
+        }
+    }
+    //now convert to cgs units 
+    for(int dim = 0; dim < GetGridRank(); dim++){
+        for(int ind = 0; ind < field_size; ind ++){
+            dxyz[dim][ind] *= LengthUnits; 
+            xyz[dim][ind] *= LengthUnits; 
+        }
+    }
+    return 1; 
+
+}
+
+int grid::SetLengthUnits(double myLengthUnits){
+    cout << "myLengthUnits: " << myLengthUnits << endl;
+    LengthUnits = myLengthUnits;
+    cout << "LengthUnits " << LengthUnits << endl;
+    return 1; 
+}
+
+int grid::SetMassUnits(double myMassUnits){
+    MassUnits = myMassUnits; 
+    return 1; 
+}
+
+int grid::SetTimeUnits(double myTimeUnits){
+    TimeUnits = myTimeUnits; 
+    return 1;
 }
 
 int grid::SetGridID(int myGridID){
@@ -316,6 +429,11 @@ int grid::SetProcessorNumber(int myProcessorNumber){
     return 1;
 }
 
+int grid::SetSize(int mysize){ 
+    field_size = mysize; 
+    return 1; 
+}
+
 
 int grid::GetGridID(){return GridID;}
 int grid::GetTask(){return Task;}
@@ -343,6 +461,10 @@ grid* grid::GetNextGridNextLevel(){return NextGridNextLevel;}
 int grid::GetNextGridThisLevelID(){return NextGridThisLevelID;}
 int grid::GetNextGridNextLevelID(){return NextGridNextLevelID;}
 int grid::GetProcessorNumber(){return ProcessorNumber;}
+int grid::GetSize(){return field_size;}
+double grid::GetLengthUnits(){return LengthUnits;}
+double grid::GetMassUnits(){return MassUnits;}
+double grid::GetTimeUnits(){return TimeUnits;}
 
 //function to print all data a grid has, useful for debugging
 void grid::PrintAllData(){
@@ -393,6 +515,14 @@ if(GridID > 0){
     std::cout << "NextGridThisLevelID: " << NextGridThisLevelID << endl;
     std::cout << "NextGridNextLevelID: " << NextGridNextLevelID << endl;
     std::cout << "ProcessorNumber: " << ProcessorNumber << endl;
+    std::cout << "size: " << field_size << endl;
+    std::cout << GridID << "isRefined: "; 
+    for(int i = 0; i < 10; i++)
+        std::cout << *(isRefined + i) << " ";
+    std::cout << endl;
+    std::cout << "LengthUnits " << LengthUnits << endl; 
+    std::cout << "TimeUnits " << TimeUnits << endl;
+    std::cout << "MassUnits " << MassUnits << endl;
 }	
 
 }
@@ -582,8 +712,6 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 			}
                 }
             }
-		//}	
-	}
     //read ID of NextGridNextLevel 
 	while(fscanf(fptr, "Pointer: Grid[%d]->NextGridNextLevel = %d\n", &PointerGridID, &NextGridNextLevelID) == 2){
 		for(int i = 0; i <= count; i++){
@@ -596,7 +724,9 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 		}	
 
 	}
-    }
+}
+}
+    
     //Now actually set the pointers for NGTL and NGNL
     for(int i = 0; i < count; i++){
         int ind = FindGridID(localgrid, count, localgrid[i].GetNextGridThisLevelID());
@@ -621,15 +751,19 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
         for(int j = 0; j < localgrid[i].GridRank; j++){
             localgrid[i].CellWidth[j] = new float[localgrid[i].GridDimension[j]];
             float delta = (localgrid[i].GridRightEdge[j] - localgrid[i].GridLeftEdge[j]) / localgrid[i].GridDimension[j];
-            for(int k = 0; k < localgrid[i].GetGridDimension()[j]; k++){
-               localgrid[i].CellWidth[j][k] = k*delta + delta/2;  
-            }
+            //put delta in array for CellWidth 
         }
+    }
+
+    //set units 
+    for(int i = 0; i < count; i++){
+        cout << "SetUnits for grid " << localgrid[i].GridID << endl;
+        SetUnits("TT0000/time0000", localgrid[i]); 
+        cout << "localgrid[i] LengthUnits " << localgrid[i].LengthUnits << endl;
     }
 	return(1);
 
 }
-
 
 int Distribute_Grids(grid grids[],int num_nodes, int global_rank, const char *filename){
 	//determining the total number of grids 
@@ -704,7 +838,7 @@ int read_dataset(grid localgrids[], int num_grids, int global_rank){
         h5_status = H5Fclose(file_id);
     }
     
-    //localgrids[0].PrintAllData(); 
+    cout << "localgrids[0] LengthUnits " << localgrids[0].LengthUnits << endl; 
     cout << "localgrids[0] GridID: " << localgrids[0].GridID << endl;
     cout << "localgrids[0] NextLevelID: " << localgrids[0].NextGridThisLevelID << endl;
     isRefinedMaster(localgrids);
@@ -714,11 +848,12 @@ int read_dataset(grid localgrids[], int num_grids, int global_rank){
 
 int isRefinedWorker(grid* currentgrid, grid* subgrid){
     int *dims = currentgrid->GetGridDimension();
-    int size = 1;
+    int field_size = 1;
     //redo since its all not 0 or 1
     //count how many zones in parent grid
-    for(int i = 0; i < currentgrid->GetGridRank(); i++){size *= dims[i];}
-    if(currentgrid->isRefined == NULL){currentgrid->isRefined = new int[size];} //create isRefined field is it doesn't exist
+    for(int i = 0; i < currentgrid->GetGridRank(); i++){field_size *= dims[i];}
+    currentgrid->SetSize(field_size);
+    if(currentgrid->isRefined == NULL){currentgrid->isRefined = new int[field_size];} //create isRefined field is it doesn't exist
     //code mostly ripped from Grid_ZeroSolutionUnderSubgrid
     int subgrid_start[3], subgrid_end[3]; 
     for(int i = 0; i < currentgrid->GetGridRank(); i++){
@@ -739,8 +874,8 @@ int isRefinedWorker(grid* currentgrid, grid* subgrid){
                int index = (k*currentgrid->GridDimension[1] + j)*currentgrid->GridDimension[0] + i;
                currentgrid->isRefined[index] = 1; 
             }
-    if(subgrid != NULL){for(int i = 0; i < size; i++){currentgrid->isRefined[i] = 1;}}//isRefined field = 1 if subgrid exists
-    else{for(int i = 0; i < size; i++){currentgrid->isRefined[i] = 0;}}
+    if(subgrid != NULL){for(int i = 0; i < field_size; i++){currentgrid->isRefined[i] = 1;}}//isRefined field = 1 if subgrid exists
+    else{for(int i = 0; i < field_size; i++){currentgrid->isRefined[i] = 0;}}
     return 1;
 }
 
@@ -750,14 +885,56 @@ int isRefinedMaster(grid* grids){
         //if NGNL doesn't exist for first grid the loop never iterates 
         //might need to call this differently in read_grids
         grid *temp = currentgrid->NextGridNextLevel; //pointer to NextGridNextLevel
-        cout << "isRefinedMaster i " << i << endl;
         while(temp != NULL){
-            cout << "temp not null " << endl;
-            temp->PrintAllData();
             isRefinedWorker(currentgrid, temp);//Set subgrid field 
-            temp = temp->NextGridThisLevel;//move across one in the hierarchy changed currentgrid-> to temp->   
+            //currentgrid->PrintAllData();
+            temp = currentgrid->NextGridThisLevel;//move across one in the hierarchy               
         }
     }
     return 1;
 }
+
+int readFieldsWorker(grid *grid){
+    for(int i = 0; i < grid->GetGridRank(); i++){
+        grid->fields[i] = new float(grid->field_size); 
+    }
+    return 1;
+}
+
+int readFieldsMaster(grid* grids){
+    for(int i = 0; i < 1780; i++){
+        grid *currentgrid = grids + i; 
+        readFieldsWorker(currentgrid);
+    }
+    return 1;
+
+}
+
+int SetUnits(const char* filename, grid currentgrid){
+    FILE *fptr; 
+    double length_units, mass_units, time_units;
+    fptr = fopen(filename, "r"); 
+    if(fptr==NULL){
+        cout << "Error opening Units file" << endl;
+        return 0; 
+    }
+    else{
+        char line[256]; 
+        while(fgets(line, sizeof(line),fptr)){
+            if(sscanf(line, "LengthUnits = %lf", &length_units) == 1){
+                currentgrid.SetLengthUnits(length_units);
+                cout << "CurrentGridLengthUnits: " << currentgrid.LengthUnits << endl;
+            }
+            if(sscanf(line, "MassUnits = %lf", &mass_units) == 1){
+                currentgrid.SetMassUnits(mass_units);
+            }
+            if(sscanf(line, "TimeUnits = %lf", &time_units) == 1){
+                currentgrid.SetTimeUnits(time_units);
+            }
+        }
+    }
+    fclose(fptr);
+    return 1; 
+}
+
 
