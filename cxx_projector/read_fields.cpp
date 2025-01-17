@@ -10,6 +10,8 @@
 
 //int read_dataset(grid localgrids[], int size);
 
+int my_derivedfield(grid mygrid, float ans[]);
+
 int main(int argc, char *argv[]){
     int globalrank, localrank, num_nodes; 
     grid localgrids[2000]; 
@@ -24,12 +26,28 @@ int main(int argc, char *argv[]){
     if(localrank==0){
         parse_hierarchy("time0000.hierarchy", localgrids, globalrank/num_nodes);
        Distribute_Grids(localgrids, num_nodes, globalrank, "time0000.hierarchy"); 
-       //At this point localgrids is filled for the current node, ready for test case 
-       read_dataset(localgrids, 2000, globalrank); 
+       //At this point localgrids is filled for the current node, ready for test case
+       for(int grid_num = 0; grid_num < 2000; grid_num++){
+            read_dataset(localgrids, 2000, globalrank, grid_num, "Bx");
+            read_dataset(localgrids, 2000, globalrank, grid_num, "By");
+            read_dataset(localgrids, 2000, globalrank, grid_num, "Bz");
+            localgrids[grid_num].SetDerivedField("test_derived_field", &my_derivedfield);
+        }
     }
+    localgrids[1000].PrintAllData();
     MPI_Comm_free(&mastercomm); 
     MPI_Finalize();
-    cout << "Finished" << endl;
+}
+
+int my_derivedfield(grid mygrid, float ans[]){
+    float* Bx = mygrid.GetPrimativeField("Bx");
+    float* By = mygrid.GetPrimativeField("By");
+    int sze = mygrid.GetSize();
+    for(int i = 0; i < sze; i++){
+        ans[i] = Bx[i] + By[i];
+        ans[i] = 1; 
+    }
+    return 1;
 }
 
 /*int read_dataset(grid localgrids[], int num_grids){

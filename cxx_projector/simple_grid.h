@@ -14,28 +14,34 @@
 #include<iostream>
 #include<cstring>
 #include<hdf5.h>
+#include<map>
 #include<math.h>
 using namespace std;
+
+class grid; 
 
 class field
 {
     private: 
         float* data; 
-        char* field_name; 
+        const char* field_name; 
         int GridID;
 
-    public: 
+    public:
+        friend grid;
         field(); //constructor JACOB MAKE THE DESTRUCTOR ALREADY DONT BE CRINGE
+        ~field();
+        //accessor functions 
+        float* GetFieldData(); 
+        const char* GetFieldName(); 
+        int GetFieldGridID(); 
 
-    //accessor functions 
-    float* GetFieldData(); 
-    char* GetFieldName(); 
-    int GetFieldGridID(); 
-
-    //setter routines 
-    int SetFieldName(char *myfieldfame); 
-    int SetFieldGridID(int myfieldGridID); 
-
+        //setter routines 
+        int SetFieldName(const char *myfieldfame); 
+        int SetFieldGridID(int myfieldGridID);
+        int SetFieldData(float *myfielddata, int field_size); 
+        int AllocateField(int size);
+        int load_data(char *filename, const char *fieldname,int GridID, int size);
 };
 
 field::field(){
@@ -44,11 +50,26 @@ field::field(){
     GridID = 0; 
 }
 
-float* field::GetFieldData(){return data;}
-char* field::GetFieldName(){return field_name;}
+field::~field(){
+    data = NULL;
+    delete[] data; 
+}
+
+float* field::GetFieldData(){
+    if(data == NULL){
+        cout << "Error: The Field you're trying to access has not been read from disk!" << endl;
+    }
+    return data;
+}
+const char* field::GetFieldName(){return field_name;}
 int field::GetFieldGridID(){return GridID;}
 
-int field::SetFieldName(char* myfieldname){
+int field::AllocateField(int size){
+    data = new float[size]; 
+    return 1; 
+}
+
+int field::SetFieldName(const char* myfieldname){
     field_name = myfieldname; 
     return 1; 
 }
@@ -57,6 +78,32 @@ int field::SetFieldGridID(int myfieldGridID){
     GridID = myfieldGridID; 
     return 1; 
 }
+
+int field::SetFieldData(float* myfielddata, int field_size){
+    for(int i = 0; i < field_size; i++){
+        data[i] = myfielddata[i];
+    }
+    return 1; 
+}
+
+int field::load_data(char *filename, const char *fieldname, int GridID, int size){
+    if(GridID == 0){return 1;}
+    data = new float[size];  
+    hid_t file_id, group_id, dset_id; 
+    hid_t h5_status;
+    char group_name[100]; 
+    sprintf(group_name,"Grid%08d",GridID); 
+    file_id = H5Fopen(filename, H5F_ACC_RDONLY,H5P_DEFAULT);
+    group_id = H5Gopen2(file_id, group_name,H5P_DEFAULT);
+    dset_id = H5Dopen(group_id, fieldname, H5P_DEFAULT); 
+    h5_status = H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    h5_status = H5Fclose(file_id);
+    return 1; 
+}
+
+    
+
+
 
 class grid
 {
@@ -94,13 +141,18 @@ class grid
         double LengthUnits;
         double MassUnits; 
         double TimeUnits; 
-        float **fields;
+        field fields[99];
         float *xyz[3]; 
-        float *dxyz[3]; 
+        float *dxyz[3];
+        int number_of_derived_fields;
+        int notRefined_num; 
+        int *notRefined_ind; 
 
 	public: //member functions
 		grid(); //constructor which sets everything to defaults
-        int make_xyz(); 
+        ~grid();
+        int make_xyz();
+        int find_field_ind(int myfieldid); 
 
 		//setter routines 
 		int SetGridID(int myGridID);
@@ -133,7 +185,9 @@ class grid
         int SetLengthUnits(double myLengthUnits);
         int SetMassUnits(double myMassUnits); 
         int SetTimeUnits(double myTimeUnits); 
-
+        int allocate_field_size(int size, int field_ind);
+        int SetDerivedField(const char* fieldname, int (*func)(grid, float*)); 
+        int allocate_isRefined(int size); 
 		//Accessor Routines
 		int GetGridID();
 	    int GetTask();	
@@ -166,19 +220,24 @@ class grid
         double GetLengthUnits();
         double GetMassUnits(); 
         double GetTimeUnits(); 
+        map<string, int> field_id{{"Density", 0}, {"TotalEnergy", 1}, {"InternalEnergy", 2}, {"Pressure", 3}, {"Velocityx", 4}, {"Velocityy", 5}, {"Velocityz", 6}, {"ElectronDensity",7}, {"HIDensity",8}, {"HIIDensity",9}, {"HeIDensity", 10}, {"HeIIDensity", 11}, {"HeIIIDensity", 12}, {"HMDensity", 13}, {"H2IDensity", 14}, {"H2IIDensity", 15}, {"Metallicity",20}, {"Bx", 49}, {"By", 50}, {"Bz", 51}};
+        float* GetPrimativeField(const char* field_name);  
 
 		//friend functions
 		friend int parse_hierarchy(const char *filename, grid localgrid[], int nodenum); 
 		friend int ReadListOfInts(FILE *fptr, int N, int num[], int TestGridID);
 		friend int distribute_grids(grid grids[],int num_nodes, int global_rank, const char *filename);
-        friend int read_dataset(grid grids[], int size, int global_rank);
+        friend int read_dataset(grid grids[], int size, int global_rank, int grid_num, const char* field_name);
         friend int isRefinedMaster(grid* current_grid);
         friend int isRefinedWorker(grid* current_grid, grid* subgrid);
         friend int FindGridID(grid grids[], int found_grids, int GridID);
-        friend int readFieldsMaster(grid* grids); 
-        friend int readFieldsWorker(grid* grid); 
-        friend int SetUnits(const char *filename, grid currentgrid); 
+        friend int SetUnits(const char *filename, grid currentgrid);
+        friend int test_derived_field(grid grid, float res[]); 
+        friend int create_derived_field(grid localgrids[], int global_rank, int grid_num, const char* field_name);
+        //friend int SetNumNotRefined(grid mygrid); 
+        //friend int SetNotRefinedInds(grid mygrid);
 };
+
 
 int GetNumberOfGrids(const char* filename); 
 
@@ -226,9 +285,73 @@ grid::grid()
 	}
 	NextGridThisLevel = NULL; 
 	NextGridNextLevel = NULL;
+    for(int i = 0; i < 3; i++){
+        CellWidth[i] = NULL;
+    }
     field_size = 0;
+    number_of_derived_fields = 0;
+    isRefined = NULL;
+    notRefined_ind = NULL;
+    notRefined_num = 0;
 	//BaryonFileName = "None"; 	
 
+}
+
+grid::~grid(){
+    for(int dim = 0; dim < GridRank; dim++){
+        delete[] dxyz[dim]; 
+        delete[] xyz[dim];
+        CellWidth[dim] = NULL;
+        delete[] CellWidth[dim]; 
+    }
+    isRefined = NULL;
+    delete[] isRefined; 
+}
+
+int test_derived_field(grid grid, float res[]){
+    float* Bx_arr = grid.GetPrimativeField("Bx"); 
+    float* By_arr = grid.GetPrimativeField("By");
+    int fld_size = grid.GetSize();
+    for(int i = 0; i < fld_size; i++){
+        //cout << "setting derived field index " << i << endl;
+        //cout << "Bx[i] By[i] " << Bx_arr[i] << By_arr[i] << endl;
+        //res[i] = Bx_arr[i] + By_arr[i]; 
+        res[i] = 1;
+    }
+    return 1; 
+}
+
+float* grid::GetPrimativeField(const char* field_name){
+    int fld_id = field_id[field_name];
+    int field_ind = find_field_ind(fld_id);
+    return fields[field_ind].GetFieldData(); 
+}
+
+int grid::find_field_ind(int myfieldid){
+    int fieldid = 99; 
+    for(int i = 0; i < NumberOfBaryonFields + number_of_derived_fields; i++){
+        if(FieldType[i] == myfieldid){
+            fieldid = i; 
+        }
+    }
+    return fieldid; 
+}
+
+int grid::allocate_field_size(int size, int field_ind){
+   fields[field_ind].data = new float[size]; 
+   return 1; 
+}
+
+int grid::SetDerivedField(const char* field_name, int (*func)(grid, float*)){
+   if(GridID == 0){return 1;} //Nothing to add to empty grid
+   int derived_field_index = 90 + number_of_derived_fields; 
+   field_id.insert({field_name, derived_field_index});
+   float derived_field_data[field_size];
+   func(*this, derived_field_data);
+   fields[derived_field_index].AllocateField(field_size); 
+   fields[derived_field_index].SetFieldData(derived_field_data, field_size);
+   fields[derived_field_index].SetFieldName(field_name); 
+   return 1;
 }
 
 int grid::make_xyz(){
@@ -268,9 +391,7 @@ int grid::make_xyz(){
 }
 
 int grid::SetLengthUnits(double myLengthUnits){
-    cout << "myLengthUnits: " << myLengthUnits << endl;
     LengthUnits = myLengthUnits;
-    cout << "LengthUnits " << LengthUnits << endl;
     return 1; 
 }
 
@@ -517,16 +638,28 @@ if(GridID > 0){
     std::cout << "ProcessorNumber: " << ProcessorNumber << endl;
     std::cout << "size: " << field_size << endl;
     std::cout << GridID << "isRefined: "; 
-    for(int i = 0; i < 10; i++)
-        std::cout << *(isRefined + i) << " ";
+    if(isRefined == NULL){cout << "NULL";}
+    else{
+        for(int i = 0; i < 20000; i++){
+            std::cout << isRefined[i] << " ";
+        }
+    }
     std::cout << endl;
     std::cout << "LengthUnits " << LengthUnits << endl; 
     std::cout << "TimeUnits " << TimeUnits << endl;
     std::cout << "MassUnits " << MassUnits << endl;
+    cout << "field_id " << endl;
+    for(const auto& pair : field_id){
+        cout << pair.first << " : " << pair.second << endl;
+    }
 }	
 
 }
 
+int grid::allocate_isRefined(int size){
+    isRefined = new int[size]; 
+    return 1;
+}
 int ReadListOfInts(FILE *fptr, int N, int nums[], int TestGridID){
 	for(int i = 0; i < N; i++){
 		if(fscanf(fptr, "%d", nums + i) != 1){
@@ -752,6 +885,9 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
             localgrid[i].CellWidth[j] = new float[localgrid[i].GridDimension[j]];
             float delta = (localgrid[i].GridRightEdge[j] - localgrid[i].GridLeftEdge[j]) / localgrid[i].GridDimension[j];
             //put delta in array for CellWidth 
+            for(int k = 0; k < localgrid[i].GridDimension[j]; k++){
+                localgrid[i].CellWidth[j][k] = delta; 
+            }
         }
     }
 
@@ -760,6 +896,15 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
         cout << "SetUnits for grid " << localgrid[i].GridID << endl;
         SetUnits("TT0000/time0000", localgrid[i]); 
         cout << "localgrid[i] LengthUnits " << localgrid[i].LengthUnits << endl;
+    }
+
+    //set field_size
+    for(int i = 0; i <= count; i++){
+        int size = 1; 
+        for(int dim = 0; dim < localgrid[i].GridRank; dim++){
+            size *= localgrid[i].GridDimension[dim]; 
+        }
+        localgrid[i].field_size = size; 
     }
 	return(1);
 
@@ -787,60 +932,35 @@ int Distribute_Grids(grid grids[],int num_nodes, int global_rank, const char *fi
 	return 1; 
 }
 
-int read_dataset(grid localgrids[], int num_grids, int global_rank){
+
+int read_dataset(grid localgrids[], int num_grids, int global_rank,int grid_num, const char* field_name){
     //get length of localgrids
-    cout << "localgrids length: " << num_grids << endl; 
     //loop over localgrids
-    for(int i = 0; i < num_grids; i++){
-        int NumberOfFieldsToRead = 4;
-        char *filename = localgrids[i].GetBaryonFileName(); 
-        int *FieldType = localgrids[i].GetFieldType(); 
-        int *dims = localgrids[i].GetGridDimension();
-        int rank = localgrids[i].GetGridRank();
-        int GridID = localgrids[i].GetGridID();
-        int ProcessorNumber = localgrids[i].GetProcessorNumber();
-        int densnum = 0; //field labels following enzo convention 
-        int B1num = 49; 
-        int B2num = 50; 
-        int B3num = 51; 
-        int labels[4] = {densnum, B1num, B2num, B3num}; 
-        static const char* const names[] = {"Density", "Bx", "By", "Bz"};//I am ashamed
-        if(GridID == 0){continue;}
-        if(ProcessorNumber != global_rank){continue;} //only read on the processor number to which the grid is assigned
-        //checking that all the field labels that I expect exist and were read from .hierarchy
-        for(int i = 0; i < 4; i++){
-            for(int j = 0; j < 100; j++){
-                if(FieldType[j] == labels[i]){break;}
-                if(j == 99){
-                    cout << "CANT FIND FIELD LABEL" << endl;
-                    return 0;
-                }
-            }
+    int field_ID = 99; 
+    char *filename = localgrids[grid_num].GetBaryonFileName(); 
+    int *FieldType = localgrids[grid_num].GetFieldType(); 
+    int *dims = localgrids[grid_num].GetGridDimension();
+    int rank = localgrids[grid_num].GetGridRank();
+    int GridID = localgrids[grid_num].GetGridID();
+    int ProcessorNumber = localgrids[grid_num].GetProcessorNumber();
+    map<string, int> field_id{{"Density", 0}, {"TotalEnergy", 1}, {"InternalEnergy", 2}, {"Pressure", 3}, {"Velocityx", 4}, {"Velocityy", 5}, {"Velocityz", 6}, {"ElectronDensity",7}, {"HIDensity",8}, {"HIIDensity",9}, {"HeIDensity", 10}, {"HeIIDensity", 11}, {"HeIIIDensity", 12}, {"HMDensity", 13}, {"H2IDensity", 14}, {"H2IIDensity", 15}, {"Metallicity",20}, {"Bx", 49}, {"By", 50}, {"Bz", 51}};
+    field_ID = field_id.at(field_name); 
+    if(GridID == 0){return 1;}
+    if(ProcessorNumber != global_rank){return 1;} //only read on the processor number to which the grid is assigned
+    //checking that all the field labels that I expect exist and were read from .hierarchy
+    int field_ind = 99; 
+    for(int j = 0; j < 100; j++){
+        if(FieldType[j] == field_ID){
+            field_ind = j; 
+            break;
         }
-        const char *field_name = "Bz";
-        char group_name[100]; 
-        sprintf(group_name,"Grid%08d",GridID); 
-        //Now field labels are sure to exist, start reading fields from .cpu files
-        hid_t file_id, group_id, dset_id; 
-        hid_t h5_status; 
-        file_id = H5Fopen(filename, H5F_ACC_RDONLY,H5P_DEFAULT);
-        group_id = H5Gopen2(file_id, group_name,H5P_DEFAULT);
-        int size = 1; 
-        for(int j = 0; j < rank; j++){size *= dims[j];}
-        for(int field = 0; field < NumberOfFieldsToRead; field++){
-            localgrids[i].BaryonField[field] = new float[size];
-            for(int k = 0; k < size; k++){
-                localgrids[i].BaryonField[field][k] = 0; 
-            }
-        dset_id = H5Dopen(group_id, names[field], H5P_DEFAULT); 
-        h5_status = H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, localgrids[i].BaryonField[field]);
+        if(j == 99){
+            cout << "CANT FIND FIELD LABEL" << endl;
+            return 0;
         }
-        h5_status = H5Fclose(file_id);
     }
-    
-    cout << "localgrids[0] LengthUnits " << localgrids[0].LengthUnits << endl; 
-    cout << "localgrids[0] GridID: " << localgrids[0].GridID << endl;
-    cout << "localgrids[0] NextLevelID: " << localgrids[0].NextGridThisLevelID << endl;
+    localgrids[grid_num].fields[field_ind].load_data(filename, field_name, GridID, localgrids[grid_num].field_size); 
+
     isRefinedMaster(localgrids);
     
     return 1;
@@ -849,22 +969,27 @@ int read_dataset(grid localgrids[], int num_grids, int global_rank){
 int isRefinedWorker(grid* currentgrid, grid* subgrid){
     int *dims = currentgrid->GetGridDimension();
     int field_size = 1;
-    //redo since its all not 0 or 1
     //count how many zones in parent grid
     for(int i = 0; i < currentgrid->GetGridRank(); i++){field_size *= dims[i];}
-    currentgrid->SetSize(field_size);
-    if(currentgrid->isRefined == NULL){currentgrid->isRefined = new int[field_size];} //create isRefined field is it doesn't exist
+    currentgrid->SetSize(field_size); //should already be set at this point
+    if(currentgrid->isRefined == NULL){
+        currentgrid->isRefined = new int[currentgrid->GetSize()]; //create isRefined field is it doesn't exist
+        //initialize isRefined field to zero, set 1's later
+        for(int i = 0; i < currentgrid->GetSize(); i++){currentgrid->isRefined[i] = 0;} 
+    }
     //code mostly ripped from Grid_ZeroSolutionUnderSubgrid
     int subgrid_start[3], subgrid_end[3]; 
     for(int i = 0; i < currentgrid->GetGridRank(); i++){
         int NumberOfGhostZones = currentgrid->GridStartIndex[i]; 
-        int Left = currentgrid->GridLeftEdge[i] - currentgrid->CellWidth[i][0] * NumberOfGhostZones;
-        int Right = currentgrid->GridRightEdge[i] - currentgrid->CellWidth[i][currentgrid->GridDimension[i]-1] * NumberOfGhostZones;
+        float Left = currentgrid->GridLeftEdge[i] - currentgrid->CellWidth[i][0] * NumberOfGhostZones;
+        float Right = currentgrid->GridRightEdge[i] - currentgrid->CellWidth[i][currentgrid->GridDimension[i]-1] * NumberOfGhostZones;
+        //cout << "Left: " << Left << " Right: " << Right << "CellWidth [i] " << currentgrid->CellWidth[i][0] << endl;
+        //cout << "LeftEdge: " << currentgrid->GridLeftEdge[i] << " NumberOfGhostZones: " << NumberOfGhostZones << endl;
         //get where other grids overlap this grid and its ghost zones 
         if(subgrid->GridRightEdge[i] <= Left || subgrid->GridLeftEdge[i] >= Right){return 1;} //case of no overlap 
        subgrid_start[i] = nearbyint((subgrid->GridLeftEdge[i] - Left) / currentgrid->CellWidth[i][0]); 
        subgrid_end[i] = nearbyint((subgrid->GridRightEdge[i] - Left) / currentgrid->CellWidth[i][0]) - 1;
-
+        //cout << "CellWidth[i][0] " << currentgrid->CellWidth[i][0] << endl;
         subgrid_start[i] = max(subgrid_start[i],0); 
         subgrid_end[i] = min(subgrid_end[i], currentgrid->GridDimension[i]-1); 
     }
@@ -872,10 +997,10 @@ int isRefinedWorker(grid* currentgrid, grid* subgrid){
         for(int j = subgrid_start[1]; j <= subgrid_end[1]; j++)
             for(int i = subgrid_start[0]; i <= subgrid_end[0]; i++){
                int index = (k*currentgrid->GridDimension[1] + j)*currentgrid->GridDimension[0] + i;
-               currentgrid->isRefined[index] = 1; 
+               if(currentgrid->isRefined[index] == 0){
+                   currentgrid->isRefined[index] = 1;
+               }
             }
-    if(subgrid != NULL){for(int i = 0; i < field_size; i++){currentgrid->isRefined[i] = 1;}}//isRefined field = 1 if subgrid exists
-    else{for(int i = 0; i < field_size; i++){currentgrid->isRefined[i] = 0;}}
     return 1;
 }
 
@@ -887,28 +1012,13 @@ int isRefinedMaster(grid* grids){
         grid *temp = currentgrid->NextGridNextLevel; //pointer to NextGridNextLevel
         while(temp != NULL){
             isRefinedWorker(currentgrid, temp);//Set subgrid field 
-            //currentgrid->PrintAllData();
-            temp = currentgrid->NextGridThisLevel;//move across one in the hierarchy               
+            currentgrid = temp;
+            temp = currentgrid->NextGridNextLevel;//move down one in the hierarchy               
         }
     }
     return 1;
 }
 
-int readFieldsWorker(grid *grid){
-    for(int i = 0; i < grid->GetGridRank(); i++){
-        grid->fields[i] = new float(grid->field_size); 
-    }
-    return 1;
-}
-
-int readFieldsMaster(grid* grids){
-    for(int i = 0; i < 1780; i++){
-        grid *currentgrid = grids + i; 
-        readFieldsWorker(currentgrid);
-    }
-    return 1;
-
-}
 
 int SetUnits(const char* filename, grid currentgrid){
     FILE *fptr; 
@@ -936,5 +1046,22 @@ int SetUnits(const char* filename, grid currentgrid){
     fclose(fptr);
     return 1; 
 }
+/*
+int SetNumNotRefined(grid *mygrid){
+    for(int i = 0; i < mygrid->GetSize(); i++){
+        if(mygrid->isRefined[i] == 0){mygrid->notRefined_num++;}
+    }
+    return 1; 
+}
 
-
+int SetNotRefinedInds(grid *mygrid){
+    mygrid->notRefined_ind = new int[mygrid->notRefined_num];
+    int ind = 0;
+    for(int i = 0; i < mygrid->GetSize(); i++){
+        if(mygrid->isRefined[i] == 0){
+            notRefined_ind[ind] = i; 
+            ind++;
+        }
+    }
+    return 1;
+}*/
