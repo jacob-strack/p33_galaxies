@@ -8,9 +8,7 @@
 #include <mpi.h>
 #include <hdf5.h>
 
-//int read_dataset(grid localgrids[], int size);
-
-int my_derivedfield(grid mygrid, float ans[]);
+double my_derived_field(int index, double* in1, va_list args);
 
 int main(int argc, char *argv[]){
     int globalrank, localrank, num_nodes; 
@@ -28,71 +26,63 @@ int main(int argc, char *argv[]){
        Distribute_Grids(localgrids, num_nodes, globalrank, "time0000.hierarchy"); 
        //At this point localgrids is filled for the current node, ready for test case
        for(int grid_num = 0; grid_num < 2000; grid_num++){
-            read_dataset(localgrids, 2000, globalrank, grid_num, "Bx");
-            read_dataset(localgrids, 2000, globalrank, grid_num, "By");
-            read_dataset(localgrids, 2000, globalrank, grid_num, "Bz");
-            localgrids[grid_num].SetDerivedField("test_derived_field", &my_derivedfield);
+            build_isRefined(localgrids + grid_num);
         }
+       for(int grid_num = 0; grid_num < 2000; grid_num++){
+            set_not_refined(localgrids + grid_num);
+        }
+       for(int i = 0; i < 2000; i++){
+            if(localgrids[i].GetNextGridThisLevelID() != 0 && localgrids[i].GetNextGridThisLevel() == NULL){cout << "Bad pointer setup " << localgrids[i].GetGridID() << endl;}
+        }
+       int num = GetNumNotRefinedGrids(localgrids, 2000); 
+       cout << "num " << num << endl;
+       int total_NR = GetTotalNotRefined(localgrids, 2000);
+       cout << "total_NR " << total_NR << endl;
+       cout << "About to make flat array object" << endl;
+       flat_array FA_test(total_NR);
+       flat_array dx(total_NR); 
+       flat_array dy(total_NR); 
+       flat_array dz(total_NR); 
+       dx.Makedxyz(localgrids, 2000,0); 
+       dy.Makedxyz(localgrids, 2000, 1); 
+       dz.Makedxyz(localgrids, 2000, 2);
+       flat_array FA_2(total_NR);
+       FA_2.MakeCellVolume(&dx, &dy, &dz); 
+       cout << "Setting Primative" << endl; 
+       FA_test.SetPrimative(localgrids, 2000, "Density");
+       flat_array mass = FA_2*FA_test;
+       cout << "dx sum: " << dx.GetTotal() << endl;
+       cout << "CV sum: " << FA_2.GetTotal() << endl;   
+       cout << "density: " << FA_test.GetDataAtInd(10) << endl; 
+       cout << "cell volume: " << FA_2.GetDataAtInd(10) << endl;
+       cout << "mass arr test: " << mass.GetDataAtInd(10) << endl;
+       mass.WriteData("mass_arr.h5");
+       cout << "total mass: " << mass.GetTotal() << endl;
+       flat_array x_arr(total_NR); 
+       cout << "About to ccall makexyz FA" << endl;
+       x_arr.Makexyz(localgrids, 2000, 0);
+       x_arr.SetFieldName("x");
+       flat_array y_arr(total_NR); 
+       y_arr.Makexyz(localgrids, 2000, 1);
+       x_arr.SetFieldName("y");
+       flat_array xpy(total_NR);
+       flat_array garbo(total_NR);
+       xpy.SetDerivedFlatArray(&my_derived_field, x_arr.GetFieldData(), y_arr.GetFieldData());
+       int res = plot_array(x_arr, y_arr, FA_test, 1000, 1000, 0.48, 0.52, 0.48, 0.52, 1);
+       cout << FA_test.GetTotal() << endl;
     }
-    localgrids[1000].PrintAllData();
+    cout << "done doing stuff" << endl;
+    //localgrids[1000].PrintAllData();
     MPI_Comm_free(&mastercomm); 
     MPI_Finalize();
+    cout << "done with everything" << endl;
 }
 
-int my_derivedfield(grid mygrid, float ans[]){
-    float* Bx = mygrid.GetPrimativeField("Bx");
-    float* By = mygrid.GetPrimativeField("By");
-    int sze = mygrid.GetSize();
-    for(int i = 0; i < sze; i++){
-        ans[i] = Bx[i] + By[i];
-        ans[i] = 1; 
-    }
-    return 1;
+
+double my_derived_field(int index, double* x_arr, va_list args_in){
+    double* y_arr = va_arg(args_in, double*);
+    double ans; 
+    ans =  x_arr[index] + y_arr[index];
+    return ans; 
 }
 
-/*int read_dataset(grid localgrids[], int num_grids){
-    //get length of localgrids
-    cout << "localgrids length: " << num_grids << endl; 
-    //loop over localgrids
-    for(int i = 0; i < num_grids; i++){
-        char *filename = localgrids[i].GetBaryonFileName(); 
-        int *FieldType = localgrids[i].GetFieldType(); 
-        int *dims = localgrids[i].GetGridDimension();
-        int rank = localgrids[i].GetGridRank();
-        int GridID = localgrids[i].GetGridID();
-        int densnum = 0; //field labels following enzo convention 
-        int B1num = 49; 
-        int B2num = 50; 
-        int B3num = 51; 
-        int labels[4] = {densnum, B1num, B2num, B3num};  
-        if(GridID == 0){continue;}
-        //checking that all the field labels that I expect exist and were read from .hierarchy
-        for(int i = 0; i < 4; i++){
-            for(int j = 0; j < 100; j++){
-                if(FieldType[j] == labels[i]){break;}
-                if(j == 99){
-                    cout << "CANT FIND FIELD LABEL" << endl;
-                    return 0;
-                }
-            }
-        }
-        const char *field_name = "Density";
-        char group_name[100]; 
-        sprintf(group_name,"Grid%08d",GridID); 
-        cout << "Group name: " << group_name << endl;
-        //Now field labels are sure to exist, start reading fields from .cpu files
-        hid_t file_id, group_id, dset_id; 
-        file_id = H5Fopen(filename, H5F_ACC_RDONLY,H5P_DEFAULT);
-        group_id = H5Gopen2(file_id, group_name,H5P_DEFAULT);
-        int size = 1; 
-        for(int j = 0; j < rank; j++){size *= dims[j];}
-        for(int field = 0; field < 4; field++){
-            localgrids[i].BaryonField[field] = new float[size];
-            for(int k = 0; k < size; k++){
-                localgrids[i].BaryonField[field][k] = 0; 
-            }
-        }
-        dset_id = H5Dopen(group_id, field_name); 
-    }
-    return 1;
-}*/
