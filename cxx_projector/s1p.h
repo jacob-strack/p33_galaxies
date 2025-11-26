@@ -13,9 +13,9 @@
 #include<pointing.h>
 //using namespace std; 
 
-vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> xyz, vector<vector<double>> dxyz, float center[3], float projax[3], int NSIDE,int exclude = 1); 
+vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> xyz, vector<vector<double>> dxyz, float center[3], float projax[3], const char* filename, int NSIDE,int exclude = 1); 
 
-vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> xyz, vector<vector<double>> dxyz, float center[3], float projax[3], int NSIDE, int exclude){
+vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> xyz, vector<vector<double>> dxyz, float center[3], float projax[3], const char* filename, int NSIDE, int exclude){
     geos::geom::GeometryFactory *factory;
     bool verbose = false;
     bool use_geos = true; 
@@ -45,17 +45,19 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
     Healpix_Map<double> counts(NSIDE, RING, SET_NSIDE); 
     Healpix_Map<double> output(NSIDE, RING, SET_NSIDE);
     Healpix_Base base(NSIDE, RING,SET_NSIDE);
-    
+    cout << "start fill maps" << endl; 
     //fill maps with zeros initially
     counts.fill(0); 
     output.fill(0);
-    
+    cout << "filled maps with zeros" << endl;   
     //rotate axes 
+    cout << "Rotation " << endl; 
     float no_center[3] = {0.0, 0.0, 0.0};//duct tape for now where i dont want the fucntion
                                          //to shift anymore bc i already did it earlier
     vector<vector<double>> xyz_p = rotate(xyz, projax, no_center); 
 
     //shifter object
+    cout << "Shifter " << endl;
     vector<vector<vector<double>>> corners(8); 
     float shifter[8][3] = {{-0.5, -0.5, -0.5}, {-0.5, -0.5, 0.5}, {0.5,-0.5,0.5},{0.5,-0.5,-0.5},{0.5,0.5,-0.5},{0.5,0.5,0.5},{-0.5,0.5,0.5},{-0.5,0.5,-0.5}};
     for(int i = 0; i < 8; i++){
@@ -77,7 +79,7 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
         zone_volume[i] = dxyz[0][i]*dxyz[1][i]*dxyz[2][i]; 
         zone_emission[i] = cube[i]/r_sq[i]*zone_volume[i];
     }
-
+    cout << "corner angles " << endl; 
     //get angles at edges of zone
     vector<vector<vector<double>>> corner_angles(8); 
     for(int i = 0; i < 8; i++){
@@ -566,7 +568,7 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
             }
         }
    }
-    ofstream outfile("plot_array.txt"); 
+    ofstream outfile(filename); 
     for(int i = 0; i < 12*NSIDE*NSIDE; i++){
         if(output[i] > 1.4)
             cout << i << " " << output[i] << endl;

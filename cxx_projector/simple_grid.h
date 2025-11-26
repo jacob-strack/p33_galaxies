@@ -13,16 +13,86 @@
 
 #include<iostream>
 #include<cstring>
-#include<hdf5.h>
+#include<fstream>
+//#include<hdf5.h>
 #include<map>
 #include<math.h>
 #include<cstdarg>
 #include<vector>
-#include <png.h>
+#include<png.h>
+#include<H5Cpp.h>
 
 using namespace std;
 int sign(float num); 
 int nint(float num);
+
+vector<double> operator-(const vector<double>& a, const vector<double>& b){
+    vector<double> ans;
+    if(a.size() != b.size()){throw invalid_argument("Size mismatch");}
+    for(int i = 0; i < a.size(); i++){
+       ans.push_back(a[i] - b[i]);  
+    } 
+    return ans; 
+}
+
+vector<double> operator+(const vector<double>& a, const vector<double>& b){
+    vector<double> ans;
+    if(a.size() != b.size()){throw invalid_argument("Size mismatch");}
+    for(int i = 0; i < a.size(); i++){
+       ans.push_back(a[i] + b[i]);  
+    } 
+    return ans; 
+}
+
+vector<double> operator*(const vector<double>& a, const vector<double>& b){
+    vector<double> ans;
+    if(a.size() != b.size()){throw invalid_argument("Size mismatch");}
+    for(int i = 0; i < a.size(); i++){
+       ans.push_back(a[i] * b[i]);  
+    } 
+    return ans; 
+}
+
+vector<double> operator*(const float& a, const vector<double>& b){
+    vector<double> ans;
+    for(int i = 0; i < b.size(); i++){
+       ans.push_back(a * b[i]);  
+    } 
+    return ans; 
+}
+
+vector<double> operator/(const vector<double>& a, const vector<double>& b){
+    vector<double> ans;
+    if(a.size() != b.size()){throw invalid_argument("Size mismatch");}
+    for(int i = 0; i < a.size(); i++){
+       ans.push_back(a[i]/b[i]);  
+    } 
+    return ans; 
+}
+
+vector<double> operator/(const float& a, const vector<double>& b){
+    vector<double> ans;
+    for(int i = 0; i < b.size(); i++){
+       ans.push_back(b[i]/a);  
+    } 
+    return ans; 
+}
+
+vector<double> operator+(const float& a, const vector<double>& b){
+    vector<double> ans;
+    for(int i = 0; i < b.size(); i++){
+       ans.push_back(a + b[i]);  
+    } 
+    return ans; 
+}
+
+vector<double> operator-(const float& a, const vector<double>& b){
+    vector<double> ans;
+    for(int i = 0; i < b.size(); i++){
+       ans.push_back(b[i] - a);  
+    } 
+    return ans; 
+}
 
 class grid; 
 int toggle = 0;  //0 does isRefined with ActiveSize, 1 does full field_size with flagging out ghost zones
@@ -30,9 +100,8 @@ int toggle = 0;  //0 does isRefined with ActiveSize, 1 does full field_size with
 class flat_array
 {
     private: 
-        double* data; 
+        vector<double> data; 
         const char* field_name;
-        int fsize; 
 
     public:
         friend grid;
@@ -40,63 +109,13 @@ class flat_array
         flat_array(int size);
         ~flat_array();
         //accessor functions 
-        double* GetFieldData(); 
+        vector<double> GetFieldData(); 
         const char* GetFieldName();
         int GetSize();
         double GetDataAtInd(int ind);
         double GetTotal(); 
 
-        flat_array operator=(const flat_array& obj){
-            if(this == &obj){return *this;}
-            fsize = obj.fsize; 
-            field_name = obj.field_name;
-            cout << "Tried Setting new field_name" << endl;
-            data = new double[fsize];
-            for(int i = 0; i < fsize; i ++){
-                data[i] = obj.data[i]; 
-            }
-            return *this;
-        }
-
-        flat_array operator*(const flat_array& obj) const {
-            flat_array ans(this->fsize);
-            if(this->fsize != obj.fsize){return 0;}
-            for(int i = 0; i < this->fsize; i++){
-               ans.data[i] = this->data[i] * obj.data[i];  
-            } 
-            ans.fsize = this->fsize; 
-            return ans; 
-        }
-
-        flat_array operator/(const flat_array& obj) const {
-            flat_array ans(this->fsize);
-            if(this->fsize != obj.fsize){return 0;}
-            for(int i = 0; i < this->fsize; i++){
-               ans.data[i] = this->data[i] / obj.data[i];  
-            } 
-            ans.fsize = this->fsize; 
-            return ans; 
-        }
         
-        flat_array operator+(const flat_array& obj) const {
-            flat_array ans(this->fsize);
-            if(this->fsize != obj.fsize){return 0;}
-            for(int i = 0; i < this->fsize; i++){
-               ans.data[i] = this->data[i] + obj.data[i];  
-            } 
-            ans.fsize = this->fsize; 
-            return ans; 
-        }
-        
-        flat_array operator-(const flat_array& obj) const {
-            flat_array ans(this->fsize);
-            if(this->fsize != obj.fsize){return 0;}
-            for(int i = 0; i < this->fsize; i++){
-               ans.data[i] = this->data[i] - obj.data[i];  
-            } 
-            ans.fsize = this->fsize; 
-            return ans; 
-        }
         //setter routines 
         int SetFieldName(const char *myfieldfame); 
         int SetFieldData(double *myfielddata, int field_size); 
@@ -104,45 +123,43 @@ class flat_array
         int load_data(char *filename, const char *fieldname,int GridID, int size);
         int SetDataAtInd(float data_pt, int ind);
         int SetPrimative(grid *grids, int num_grids, const char *fieldname);
+        int SetPrimativeAmrex(const char *plotfilename, const char *fieldname, int write_file); 
         int Makexyz(grid *grids, int num_grids, int dim);
         int Makedxyz(grid *grids, int num_grids, int dim);
         int MakeCellVolume(flat_array *dx, flat_array *dy, flat_array *dz);
-        int SetDerivedFlatArray(double (*func)(int,double*,va_list), double* in1, ...);
+        int SetDerivedFlatArray(vector<double> (*func)(vector<double>,va_list), vector<double> in1, ...);
         int WriteData(const char *filename); 
         
 };
 
 flat_array::flat_array(){
-    data = NULL; 
     field_name = NULL;
-    fsize = 0;
 }
 const char* flat_array::GetFieldName(){return field_name;}
 flat_array::flat_array(int mysize){
-    data = new double[mysize]; 
+    vector<double> data(mysize); 
     field_name = NULL; 
-    fsize = mysize; 
 }
 
 
 flat_array::~flat_array(){
-    data = NULL;
-    delete[] data; 
+    field_name = NULL; 
 }
-int flat_array::GetSize(){return fsize;}
+int flat_array::GetSize(){return data.size();}
 
 int flat_array::WriteData(const char *filename){
     hid_t file_id, dset_id; 
     hid_t float_type_id, file_type_id, file_dsp_id; 
     const int rank = 1;
-    const long unsigned int size = (long unsigned int)fsize;
+    const long unsigned int size = (long unsigned int)data.size();
     hsize_t OutDims[rank] = {size};
     herr_t h5_status; 
     file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     file_dsp_id = H5Screate_simple(1, OutDims, NULL); 
+    //dset_id = H5Dcreate(file_id, "flat_array", H5T_NATIVE_FLOAT, file_dsp_id, H5P_DEFAULT);
     dset_id = H5Dcreate2(file_id, "flat_array", H5T_NATIVE_FLOAT, file_dsp_id, H5P_DEFAULT,H5P_DEFAULT, H5P_DEFAULT);
     //had float_type_id next line replaced with H5T_NATIVE_FLOAT
-    h5_status = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    h5_status = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
     h5_status = H5Sclose(file_dsp_id); 
     h5_status = H5Dclose(dset_id);
     return 1;
@@ -150,8 +167,8 @@ int flat_array::WriteData(const char *filename){
 
 double flat_array::GetTotal(){
     double total = 0.0;
-    cout << "GetTotal fsize " << fsize << endl;
-    for(int i = 0; i < fsize; i++){
+    cout << "GetTotal fsize " << data.size() << endl;
+    for(int i = 0; i < data.size(); i++){
         if(data[i] != data[i]){
             cout << "Somethin's nan " << i << endl;
         }
@@ -160,11 +177,11 @@ double flat_array::GetTotal(){
     return total;
 }
 double flat_array::GetDataAtInd(int ind){
-    if(ind > fsize){cout << "Bad Index for FA!" << endl;}
+    if(ind > data.size()){cout << "Bad Index for FA!" << endl;}
     return data[ind];}
 
 int flat_array::SetDataAtInd(float data_pt, int ind){ 
-   if(ind >= fsize){
+   if(ind >= data.size()){
         cout << "Index out of range! Nothing Set . . ." << endl;
         return 0; 
     }
@@ -172,15 +189,14 @@ int flat_array::SetDataAtInd(float data_pt, int ind){
    return 1; 
 }
 
-double* flat_array::GetFieldData(){
-    if(data == NULL){
+vector<double> flat_array::GetFieldData(){
+    if(data.size() == 0){
         cout << "Error: The Field you're trying to access has not been read from disk!" << endl;
     }
     return data;
 }
 
 int flat_array::AllocateField(int size){
-    data = new double[size]; 
     return 1; 
 }
 
@@ -198,15 +214,16 @@ int flat_array::SetFieldData(double* myfielddata, int field_size){
 
 int flat_array::load_data(char *filename, const char *fieldname, int GridID, int size){
     if(GridID == 0){return 1;}
-    data = new double[size];  
+    vector<double> data(size);
     hid_t file_id, group_id, dset_id; 
     hid_t h5_status;
     char group_name[100]; 
     sprintf(group_name,"Grid%08d",GridID); 
     file_id = H5Fopen(filename, H5F_ACC_RDONLY,H5P_DEFAULT);
     group_id = H5Gopen2(file_id, group_name,H5P_DEFAULT);
+    //group_id = H5Gopen(file_id, group_name);
     dset_id = H5Dopen(group_id, fieldname, H5P_DEFAULT); 
-    h5_status = H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data);
+    h5_status = H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
     h5_status = H5Fclose(file_id);
     return 1; 
 }
@@ -241,20 +258,20 @@ class grid
 		grid *NextGridThisLevel;  
 		grid *NextGridNextLevel;
 		float *BaryonField[20]; //pointers to BaryonFields
-        int *isRefined;
+        vector<int> isRefined;
         int NextGridNextLevelID; 
         int NextGridThisLevelID;
         int ProcessorNumber;
-        float *CellWidth[3]; //hardcoded 3D for now 
+        vector<vector<float>> CellWidth; //hardcoded 3D for now 
         int field_size;
         double LengthUnits;
         double MassUnits; 
         double TimeUnits; 
-        double *xyz[3]; 
-        double *dxyz[3];
+        vector<vector<double>> xyz; 
+        vector<vector<double>> dxyz;
         int number_of_derived_fields;
         int notRefined_num; 
-        int *notRefined_ind;
+        vector<int> notRefined_ind;
         int ActiveSize;
 
 	public: //member functions
@@ -300,7 +317,7 @@ class grid
         int SetActiveSize(int myActiveSize); 
 		//Accessor Routines
 		int GetGridID();
-        double** Get_dxyz();
+        vector<vector<double>> Get_dxyz();
 	    int GetTask();	
 		int GetGridRank(); 
 		int* GetGridDimension();	
@@ -336,8 +353,8 @@ class grid
         map<string, int> field_id{{"Density", 0}, {"TotalEnergy", 1}, {"InternalEnergy", 2}, {"Pressure", 3}, {"Velocityx", 4}, {"Velocityy", 5}, {"Velocityz", 6}, {"ElectronDensity",7}, {"HIDensity",8}, {"HIIDensity",9}, {"HeIDensity", 10}, {"HeIIDensity", 11}, {"HeIIIDensity", 12}, {"HMDensity", 13}, {"H2IDensity", 14}, {"H2IIDensity", 15}, {"Metallicity",20}, {"Bx", 49}, {"By", 50}, {"Bz", 51}};
         //float* GetPrimativeField(const char* field_name); 
         int GetNumNotRefined();
-        int* GetNotRefinedInd();
-        double** Get_xyz();
+        vector<int> GetNotRefinedInd();
+        vector<vector<double>> Get_xyz();
 
 		//friend functions
 		friend int parse_hierarchy(const char *filename, grid localgrid[], int nodenum); 
@@ -405,13 +422,7 @@ grid::grid()
 	}
 	NextGridThisLevel = NULL; 
 	NextGridNextLevel = NULL;
-    for(int i = 0; i < 3; i++){
-        CellWidth[i] = NULL;
-    }
-    field_size = 0;
     number_of_derived_fields = 0;
-    isRefined = NULL;
-    notRefined_ind = NULL;
     notRefined_num = 0;
     LengthUnits = 0;
     ActiveSize = 0;
@@ -421,34 +432,7 @@ grid::grid()
 }
 
 grid::~grid(){
-    for(int dim = 0; dim < GridRank; dim++){
-        delete[] dxyz[dim]; 
-        delete[] xyz[dim];
-        CellWidth[dim] = NULL;
-        delete[] CellWidth[dim]; 
-    }
-    isRefined = NULL;
-    delete[] isRefined; 
 }
-
-/*int test_derived_field(grid grid, float res[]){
-    float* Bx_arr = grid.GetPrimativeField("Bx"); 
-    float* By_arr = grid.GetPrimativeField("By");
-    int fld_size = grid.GetSize();
-    for(int i = 0; i < fld_size; i++){
-        //cout << "setting derived field index " << i << endl;
-        //cout << "Bx[i] By[i] " << Bx_arr[i] << By_arr[i] << endl;
-        //res[i] = Bx_arr[i] + By_arr[i]; 
-        res[i] = 1;
-    }
-    return 1; 
-}*/
-
-/*float* grid::GetPrimativeField(const char* field_name){
-    int fld_id = field_id[field_name];
-    int field_ind = find_field_ind(fld_id);
-    return fields[field_ind].GetFieldData(); 
-}*/
 
 int grid::find_field_ind(int myfieldid){
     int fieldid = 99; 
@@ -462,6 +446,8 @@ int grid::find_field_ind(int myfieldid){
 
 
 int grid::make_xyz(){
+    if(xyz.size() != 0)
+        xyz.clear();
     int ActiveDims[3]; 
     int NumberOfGhostZones = GridStartIndex[0];
     for(int i = 0; i < GetGridRank(); i++){
@@ -472,8 +458,12 @@ int grid::make_xyz(){
         for(int i = 0; i < GetGridRank(); i++){field_size *= ActiveDims[i];}
     }
     for(int dim = 0; dim < 3; dim++){
-        dxyz[dim] = new double[field_size]; 
-        xyz[dim] = new double[field_size];
+        dxyz.push_back(vector<double>(field_size)); 
+        xyz.push_back(vector<double>(field_size));
+        for(int i = 0; i < field_size; i++){
+            xyz[dim][i] = 0; 
+            dxyz[dim][i] = 0;
+        } 
     }
     double GridWidth[3];
     for(int dim = 0; dim < GetGridRank(); dim++){
@@ -710,9 +700,9 @@ double grid::GetLengthUnits(){return LengthUnits;}
 double grid::GetMassUnits(){return MassUnits;}
 double grid::GetTimeUnits(){return TimeUnits;}
 int grid::GetNumNotRefined(){return notRefined_num;}
-int* grid::GetNotRefinedInd(){return notRefined_ind;}
-double** grid::Get_xyz(){return xyz;}
-double** grid::Get_dxyz(){return dxyz;}
+vector<int> grid::GetNotRefinedInd(){return notRefined_ind;}
+vector<vector<double>> grid::Get_xyz(){return xyz;}
+vector<vector<double>> grid::Get_dxyz(){return dxyz;}
 int grid::GetActiveSize(){return ActiveSize;}
 
 int GetTotalNotRefined(grid *grids, int num_grids);
@@ -772,7 +762,7 @@ if(GridID > 0){
     std::cout << "ProcessorNumber: " << ProcessorNumber << endl;
     std::cout << "size: " << field_size << endl;
     std::cout << GridID << "isRefined: "; 
-    if(isRefined == NULL){cout << "NULL";}
+    if(isRefined.size() == 0){cout << "NULL";}
     else{
         for(int i = 0; i < 2; i++){
             std::cout << isRefined[i] << " ";
@@ -788,20 +778,20 @@ if(GridID > 0){
     }
     cout << "numNotRefined: " << notRefined_num << endl;
     cout << "notRefined_inds: ";
-    cout << notRefined_ind << endl;
+    cout << notRefined_ind[0] << endl;
     cout << endl;
 }	
 
 }
 
 int grid::allocate_isRefined(int size){
-    isRefined = new int[size]; 
+    vector<int> isRefined(size);
     return 1;
 }
 int ReadListOfInts(FILE *fptr, int N, int nums[], int TestGridID){
 	for(int i = 0; i < N; i++){
 		if(fscanf(fptr, "%d", nums + i) != 1){
-			cout << "AHHHHH SOMETHING BROKEN "<< i << N << " " << TestGridID <<  endl;
+			cout << "AHHHHH SOMETHING BROKEN "<< i << " " <<  N << " " << TestGridID <<  endl;
 			return 0;
 		}
 	}
@@ -824,6 +814,8 @@ int FindGridID(grid grids[], int found_grids, int GridID){
 int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 	//declarations for IDs and data 
     int num_grids = GetNumberOfGrids(filename);
+    int PresentTypeCounts;
+    char PresentPartTypes[200];
 	int TestGridID, NextGridThisLevelID, NextGridNextLevelID, Task, GridRank, SubgridsAreStatic, NumberOfBaryonFields, PointerGridID;
 	int GridStartIndex[3], GridEndIndex[3], GridDimension[3], PPMFlatteningParameter, PPMDiffusionParameter, PPMSteepeningParameter; 
 	int NumberOfParticles, GravityBoundaryType; 
@@ -831,6 +823,7 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 	float Time;
 	int FieldType[100]; //change to MAX_NUMBER_OF_BARYON_FIELDS eventually
 	char name[200]; 
+    char name_part[200];
 	FILE *fptr;
 	fptr = fopen(filename, "r");
 	if(fptr==NULL){
@@ -967,8 +960,19 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 			}
 		
 	}
-	fscanf(fptr, "PresentParticleTypes = \n");
-	fscanf(fptr, "ParticleTypeCounts = \n");
+    cout << "Number of Particles" << NumberOfParticles << endl;
+    if(NumberOfParticles > 0){
+        cout << "nonzero particle number" << endl;
+        if(fscanf(fptr, "PresentParticleTypes = %s\n",PresentPartTypes) == 1)
+           cout << "read PPT" << PresentPartTypes[0] << PresentPartTypes[1] << PresentPartTypes[8]<< endl;
+        if(fscanf(fptr, "ParticleTypeCounts = %d\n", &PresentTypeCounts) == 1)
+            cout << "read PTC" << endl;
+        fscanf(fptr, "ParticleFileName = %s\n", name_part);
+    }
+    if(NumberOfParticles == 0){
+        fscanf(fptr,"PresentParticleTypes = \n");
+        fscanf(fptr,"ParticleTypeCounts = \n");
+    }
 	if(fscanf(fptr, "GravityBoundaryType = %d\n", &GravityBoundaryType) == 1){
 			if(localgrid[count].SetGravityBoundaryType(GravityBoundaryType) != 1){
 				cout << "FIRE IN GRAVITYBOUNDARYTYPE SET" << endl;
@@ -997,6 +1001,7 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 
 	}
 }
+cout << "Done with ID " << TestGridID << endl;
 }
     
     //Now actually set the pointers for NGTL and NGNL
@@ -1028,7 +1033,7 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
         }
         localgrid[i].SetActiveSize(ActiveSize);
         for(int j = 0; j < localgrid[i].GridRank; j++){
-            localgrid[i].CellWidth[j] = new float[localgrid[i].GridDimension[j]];
+            localgrid[i].CellWidth.push_back(vector<float>(localgrid[i].GridDimension[j]));
             float delta = (localgrid[i].GridRightEdge[j] - localgrid[i].GridLeftEdge[j]) / (ActiveDims[j]);
             //put delta in array for CellWidth 
             for(int k = 0; k < localgrid[i].GridDimension[j]; k++){
@@ -1050,14 +1055,12 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
         }
         localgrid[i].field_size = size;
         if(toggle == 1){
-            localgrid[i].isRefined = new int[size]; 
             for(int l = 0; l < size; l++)
-                localgrid[i].isRefined[l] = 0;
+                localgrid[i].isRefined.push_back(0);
     }
         if(toggle == 0){ 
-            localgrid[i].isRefined = new int[localgrid[i].ActiveSize];
             for(int l = 0; l < localgrid[i].ActiveSize; l++)
-                localgrid[i].isRefined[l] = 0;
+                localgrid[i].isRefined.push_back(0);
 
         }
     }
@@ -1111,11 +1114,9 @@ int isRefinedWorker(grid* currentgrid, grid* subgrid){
         ActiveDims[dim] = currentgrid->GridDimension[dim] - 2*currentgrid->GridStartIndex[dim];
         ActiveSize *= ActiveDims[dim];
     }
-    if(currentgrid->isRefined == NULL){
-        currentgrid->isRefined = new int[ActiveSize]; //create isRefined field is it doesn't exist
+    if(currentgrid->isRefined.size() == 0){
         //initialize isRefined field to zero, set 1's later
-        cout << "making new isRefined . . ." << endl;
-        for(int i = 0; i < ActiveSize; i++){currentgrid->isRefined[i] = 0;}
+        for(int i = 0; i < ActiveSize; i++){currentgrid->isRefined.push_back(0);}
     }
     int field_size = 1;
     //count how many zones in parent grid
@@ -1270,31 +1271,26 @@ int SetNotRefinedInds(grid *mygrid){
     if(mygrid->notRefined_num == 0){
         return 1; //nothing to do
     }
-    if(mygrid->notRefined_ind != NULL){
+    if(mygrid->notRefined_ind.size() != 0){
         cout << "changing notRefined_ind array that already exists!" << endl;
-        mygrid->notRefined_ind = NULL; 
-        delete[] mygrid->notRefined_ind;
-        mygrid->notRefined_ind = new int[mygrid->notRefined_num];
+        mygrid->notRefined_ind.clear();
     }
-    else{mygrid->notRefined_ind = new int[mygrid->notRefined_num];}
-    int ind = 0;
     //loop through entire isRefined and store indices of unrefined cells of current grid
     //0 toggle is for using only ActiveSize array
     //1 toggle uses field_size array with ghost zones flagged to 2
     if(toggle == 0){
     for(int i = 0; i < mygrid->GetActiveSize(); i++){
         if(mygrid->isRefined[i] == 0){
-            mygrid->notRefined_ind[ind++] = i; 
+            mygrid->notRefined_ind.push_back(i); 
         }
     }
 
     }
     if(toggle == 1){
     //this would need to include some sort of coversion to index in active size. toggle 0 does it better
-    for(int i = 0; i < mygrid->field_size; i++){
+    for(int i = 0; i < mygrid->isRefined.size(); i++){
         if(mygrid->isRefined[i] == 0){
-            mygrid->notRefined_ind[ind] = i; 
-            ind++;
+            mygrid->notRefined_ind.push_back(i); 
         }
     }
     }
@@ -1317,8 +1313,6 @@ int flat_array::SetPrimative(grid *grids, int num_grids, const char *fieldname){
     int ind = 0;
     int thing = GetTotalNotRefined(grids, num_grids);
     cout << "fsize: " << thing << endl;
-    data = new double[thing];
-    fsize = thing;
     for(int i = 0; i < num_grids; i++){
         grid *currentgrid = grids + i;
         if(currentgrid->GetGridID() == 0){continue;}
@@ -1334,15 +1328,47 @@ int flat_array::SetPrimative(grid *grids, int num_grids, const char *fieldname){
         sprintf(group_name,"Grid%08d",currentgrid->GetGridID()); 
         file_id = H5Fopen(filename, H5F_ACC_RDONLY,H5P_DEFAULT);
         group_id = H5Gopen2(file_id, group_name,H5P_DEFAULT);
+        //group_id = H5Gopen(file_id, group_name);
         dset_id = H5Dopen(group_id, fieldname, H5P_DEFAULT); 
+        //dset_id = H5Dopen(group_id, fieldname); 
         h5_status = H5Dread(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, h5_data);
         h5_status = H5Fclose(file_id);
-        int *inds = currentgrid->GetNotRefinedInd(); 
+        vector<int> inds = currentgrid->GetNotRefinedInd(); 
         for(int j = 0; j < currentgrid->GetNumNotRefined(); j++){
             if(inds[j] > currentgrid->GetActiveSize()){cout << "Reading bad things" << endl;}
-            data[ind++] = float(h5_data[inds[j]]);
+            data.push_back(float(h5_data[inds[j]]));
         }
     }
+    return 1; 
+}
+
+int flat_array::SetPrimativeAmrex(const char *plotfilename, const char *fieldname, int write_file=1){ 
+    //call the python program to load the data and save to a text file 
+    std::string pythonScript = "read_amrex_field.py"; 
+    std::string file_save_name = "data"; 
+    //combine strings for the command 
+    if(write_file == 1){
+        std::string command_string = "python " + pythonScript + " " + std::string(plotfilename) + " " + fieldname + " " + file_save_name; 
+        system(command_string.c_str()); 
+        cout << command_string << endl;
+    }
+    H5::H5File file(file_save_name + ".h5", H5F_ACC_RDONLY); 
+    H5::DataSet dataset = file.openDataSet(std::string(fieldname).c_str()); 
+    H5::DataSpace dataspace = dataset.getSpace(); 
+    int rank = dataspace.getSimpleExtentNdims();
+    if(rank > 1){
+        cout << "Dataset not 1D!" << endl;
+        return 0;
+    }
+    hsize_t dims[rank]; 
+    dataspace.getSimpleExtentDims(dims); 
+    int length = dims[0];
+    cout << "h5 length " << length << endl;
+    data.resize(length); 
+    cout << "before " << data[0] << endl;
+    dataset.read(data.data(), H5::PredType::NATIVE_DOUBLE);
+    cout << "after " << data[0] << endl;
+    file.close(); 
     return 1; 
 }
 
@@ -1352,7 +1378,7 @@ int GetTotalNotRefined(grid *grids, int num_grids){
     for(int i = 0; i < num_grids; i++){
         grid *currentgrid = grids + i; 
         tot_notRefined += currentgrid->GetNumNotRefined();
-        tot_zones += (currentgrid->GetActiveSize() - currentgrid->GetNumNotRefined()); 
+        tot_zones += (currentgrid->GetActiveSize()); 
     }
     cout << "tot not refined tot zones " << tot_notRefined << " " << tot_zones << endl;
     return tot_notRefined; 
@@ -1362,42 +1388,44 @@ int GetTotalNotRefined(grid *grids, int num_grids){
 
 int flat_array::Makexyz(grid *grids, int num_grids, int dim){
     int ind = 0; 
+    cout << "start makexyz" << endl;
     for(int i = 0; i < num_grids; i++){
         grid *currentgrid = grids + i; 
         if(currentgrid->GetGridID() == 0){continue;}
         currentgrid->make_xyz();
-        int *NotRefinedInds = currentgrid->GetNotRefinedInd();
-        double **xyz_arr = currentgrid->Get_xyz(); 
+        vector<int> NotRefinedInds = currentgrid->GetNotRefinedInd();
+        vector<vector<double>> xyz_arr = currentgrid->Get_xyz(); 
         for(int j = 0; j < currentgrid->GetNumNotRefined(); j++){
-            data[ind++] = xyz_arr[dim][NotRefinedInds[j]];
+            data.push_back(xyz_arr[dim][NotRefinedInds[j]]);
         }
     }
+    cout << "done with makexyz" << endl;
     return 1;
 }
 int flat_array::Makedxyz(grid *grids, int num_grids, int dim){
     int ind = 0;
-    cout << "Makedxyz size " << fsize << endl;
     for(int i = 0; i < num_grids; i++){
         grid *currentgrid = grids + i; 
         if(currentgrid->GetGridID() == 0){continue;}
         currentgrid->make_xyz();
-        int *NotRefinedInds = currentgrid->GetNotRefinedInd();
-        double **dxyz_arr = currentgrid->Get_dxyz();
+        vector<int> NotRefinedInds = currentgrid->GetNotRefinedInd();
+        vector<vector<double>>dxyz_arr = currentgrid->Get_dxyz();
+        cout.flush();
         for(int j = 0; j < currentgrid->GetNumNotRefined(); j++){
-            data[ind++] = dxyz_arr[dim][NotRefinedInds[j]];
+            data.push_back(dxyz_arr[dim][NotRefinedInds[j]]);
         }
     }
-    cout << "Makedxyz size2 " << fsize << endl;
+    cout << "Makedxyz size2 " << data.size() << endl;
     return 1;
 }
 
 int flat_array::MakeCellVolume(flat_array *dx, flat_array *dy, flat_array *dz){
     int rank = 3; 
-    if(data == NULL){
-        data = new double[dx->fsize]; 
+    if(data.size() == 0){
+        vector<double> data(dx->data.size()); 
     }
-    cout << "dx fsize CV " << dx->fsize << endl;
-    for(int j = 0; j < dx->fsize; j++){
+    cout << "dx fsize CV " << dx->data.size() << endl;
+    for(int j = 0; j < dx->data.size(); j++){
             data[j] = dx->data[j]*dy->data[j]*dz->data[j]; 
     }
     cout << "Cell Volume Test " << data[100] << endl;
@@ -1405,15 +1433,11 @@ int flat_array::MakeCellVolume(flat_array *dx, flat_array *dy, flat_array *dz){
 }
     
 
-int flat_array::SetDerivedFlatArray(double (*func)(int, double*, va_list), double* in1, ...){
-    for(int i = 0; i < fsize; i++){
-        va_list args;
-        va_start(args, in1);
-        double ans; 
-        ans = func(i, in1, args);
-        data[i] = ans; 
-        va_end(args);
-    }
+int flat_array::SetDerivedFlatArray(vector<double> (*func)(vector<double>, va_list), vector<double> in1, ...){
+    va_list args;
+    va_start(args, in1);
+    data = func(in1, args);
+    va_end(args);
     cout << "Done setting data" << endl;
     return 1;
 }
@@ -1434,9 +1458,9 @@ int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num
     float max_y;
     float min_data = 0; 
     float max_data = 1.0;
-    double *x_data = x_arr.GetFieldData(); 
-    double *y_data = y_arr.GetFieldData(); 
-    double *fill_data = fill_arr.GetFieldData();
+    vector<double> x_data = x_arr.GetFieldData(); 
+    vector<double> y_data = y_arr.GetFieldData(); 
+    vector<double> fill_data = fill_arr.GetFieldData();
     cout << "zeroing histograms" << endl;
     for(int i = 0; i < num_bins_y; i++){
         for(int j = 0; j < num_bins_x; j++){
