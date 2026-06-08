@@ -4,8 +4,8 @@
 using namespace std; 
 
 vector<double> my_derived_field(vector<double> x_arr, va_list args_in);
-vector<double> Q_int(float projax[3], vector<vector<double>> B, vector<double> density);
-vector<double> U_int(float projax[3], vector<vector<double>> B, vector<double> density);
+vector<double> Q_int(vector<double> Bx, va_list args_in);
+vector<double> U_int(vector<double> Bx, va_list args_in);
 
 int main(int argc, char *argv[]){
     int globalrank, localrank, num_nodes; 
@@ -19,8 +19,8 @@ int main(int argc, char *argv[]){
     MPI_Comm_rank(nodecomm, &localrank); 
     MPI_Comm_free(&nodecomm);
     if(localrank==0){
-        parse_hierarchy("DD0021/DD0021.hierarchy", localgrids, globalrank/num_nodes);
-       Distribute_Grids(localgrids, num_nodes, globalrank, "DD0021/DD0021.hierarchy"); 
+       parse_hierarchy("DD0070/DD0070.hierarchy", localgrids, globalrank/num_nodes);
+       Distribute_Grids(localgrids, num_nodes, globalrank, "DD0070/DD0070.hierarchy"); 
        //At this point localgrids is filled for the current node, ready for test case
        for(int grid_num = 0; grid_num < 2000; grid_num++){
             build_isRefined(localgrids + grid_num);
@@ -41,6 +41,9 @@ int main(int argc, char *argv[]){
         flat_array x_arr(total_NR); 
         flat_array y_arr(total_NR); 
         flat_array z_arr(total_NR); 
+        flat_array Bx(total_NR);
+        flat_array By(total_NR);
+        flat_array Bz(total_NR);
         x_arr.Makexyz(localgrids,2000,0); 
         x_arr.SetFieldName("x");
         y_arr.Makexyz(localgrids,2000,1); 
@@ -49,6 +52,7 @@ int main(int argc, char *argv[]){
         z_arr.SetFieldName("z");
         vector<vector<double>> dxyz(3); 
         vector<vector<double>> xyz(3); 
+        vector<double> projax_arr(3);
         xyz[0] = x_arr.GetFieldData();
         xyz[1] = y_arr.GetFieldData();
         xyz[2] = z_arr.GetFieldData();
@@ -56,10 +60,23 @@ int main(int argc, char *argv[]){
         dxyz[1] = dx.GetFieldData(); 
         dxyz[2] = dx.GetFieldData(); 
         Density.SetPrimative(localgrids, 2000, "Density");
-        derived_test.SetDerivedFlatArray(&my_derived_field, x_arr.GetFieldData(), y_arr.GetFieldData()); 
-        float projax[3] = {1, 0, 0}; 
-        float center[3] = {0.4965,0.5,0.531982419};
-        vector<Healpix_Map<double>> res = project(Density.GetFieldData(), xyz, dxyz, center, projax, 128, 5);
+        cout << "Setting Bx" << endl; 
+        Bx.SetPrimative(localgrids, 2000, "Bx");
+        cout << "Set Bx" << endl;
+        cout.flush();
+        By.SetPrimative(localgrids, 2000, "By");
+        Bz.SetPrimative(localgrids, 2000, "Bz");
+        float projax[3] = {0, 1, 0}; 
+        projax_arr[0] = projax[0]; 
+        projax_arr[1] = projax[1]; 
+        projax_arr[2] = projax[2]; 
+        float center[3] = {0.25,0.25,0.25};
+        cout << "About to setderived" << endl;
+        derived_test.SetDerivedFlatArray(&U_int, Bx.GetFieldData(), By.GetFieldData(), Bz.GetFieldData(), Density, projax_arr); 
+        cout << "end of setderived" << endl; 
+        cout.flush();
+        //vector<Healpix_Map<double>> res = project(derived_test.GetFieldData(), xyz, dxyz, center, projax,"U_map.txt", 32, 5);
+        vector<Healpix_Map<double>> res = project(Density.GetFieldData(), xyz, dxyz, center, projax,"Density_map.txt", 64, 1);
     }
         MPI_Comm_free(&mastercomm); 
         MPI_Finalize();
@@ -74,20 +91,38 @@ vector<double> my_derived_field(vector<double> x_arr, va_list args_in){
     return ans; 
 }
 
-vector<double> Q_int(float projax[3], vector<vector<double>> B, vector<double> density){
+vector<double> Q_int(vector<double> Bx, va_list args_in){
     float no_center[3] = {0.0, 0.0, 0.0};
+    vector<double> By = va_arg(args_in,vector<double>);
+    vector<double> Bz = va_arg(args_in,vector<double>);
+    vector<double> density = va_arg(args_in,vector<double>);
+    vector<double> projax = va_arg(args_in,vector<double>);
     for(int i = 0; i < 3; i++)
         projax[i] /= sqrt(projax[0]*projax[0] + projax[1]*projax[1] + projax[2]*projax[2]); 
-    vector<vector<double>> B_new = rotate(B, projax, no_center);
+    float p[3] = {(float)projax[0], (float)projax[1], (float)projax[2]}; //lol
+    vector<vector<double>> B_arr(3); 
+    B_arr[0] = Bx; 
+    B_arr[1] = By; 
+    B_arr[2] = Bz;
+    vector<vector<double>> B_new = rotate(B_arr, p, no_center); 
     vector<double> B_new_sq = B_new[0]*B_new[0] + B_new[1]*B_new[1] + B_new[2]*B_new[2];
     return density*(B_new[0]*B_new[0] + B_new[1]*B_new[1]) / B_new_sq;
 }
 
-vector<double> U_int(float projax[3], vector<vector<double>> B, vector<double> density){
+vector<double> U_int(vector<double> Bx, va_list args_in){
     float no_center[3] = {0.0, 0.0, 0.0};
+    vector<double> By = va_arg(args_in,vector<double>);
+    vector<double> Bz = va_arg(args_in,vector<double>);
+    vector<double> density = va_arg(args_in,vector<double>);
+    vector<double> projax = va_arg(args_in,vector<double>);
     for(int i = 0; i < 3; i++)
         projax[i] /= sqrt(projax[0]*projax[0] + projax[1]*projax[1] + projax[2]*projax[2]); 
-    vector<vector<double>> B_new = rotate(B, projax, no_center);
+    float p[3] = {(float)projax[0], (float)projax[1], (float)projax[2]}; //lol
+    vector<vector<double>> B_arr(3); 
+    B_arr[0] = Bx; 
+    B_arr[1] = By; 
+    B_arr[2] = Bz;
+    vector<vector<double>> B_new = rotate(B_arr, p, no_center);
     vector<double> B_new_sq = B_new[0]*B_new[0] + B_new[1]*B_new[1] + B_new[2]*B_new[2];
     return 2.0*density*B_new[0]*B_new[1] / B_new_sq;
 }

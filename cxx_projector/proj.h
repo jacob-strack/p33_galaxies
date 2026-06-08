@@ -32,10 +32,10 @@ vector<double> make_cube(int N){
             cube[j] = 1.0; 
         }
         if(ok1 && z > 0.5){
-            cube[j] = 2.0; 
+            cube[j] = 1.0; 
         }
         if(ok2){
-            cube[j] = 3.0;
+            cube[j] = 2.0;
         }
 }
     return cube;

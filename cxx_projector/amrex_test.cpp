@@ -16,19 +16,19 @@ int main(int argc, char *argv[]){
     MPI_Comm_rank(nodecomm, &localrank); 
     MPI_Comm_free(&nodecomm);
     */
-
+    
     flat_array test_arr; 
-    test_arr.SetPrimativeAmrex("plt35000", "gasDensity"); 
+    test_arr.SetPrimativeAmrex("plt01110", "gasDensity"); 
     
     flat_array x_arr, y_arr, z_arr;
     flat_array dx_arr, dy_arr, dz_arr; 
     
-    x_arr.SetPrimativeAmrex("plt35000", "x",0);
-    y_arr.SetPrimativeAmrex("plt35000", "y",0);
-    z_arr.SetPrimativeAmrex("plt35000", "z",0);
-    dx_arr.SetPrimativeAmrex("plt35000", "dx",0);
-    dy_arr.SetPrimativeAmrex("plt35000", "dy",0);
-    dz_arr.SetPrimativeAmrex("plt35000", "dz",0);
+    x_arr.SetPrimativeAmrex("plt01110", "x",0);
+    y_arr.SetPrimativeAmrex("plt01110", "y",0);
+    z_arr.SetPrimativeAmrex("plt01110", "z",0);
+    dx_arr.SetPrimativeAmrex("plt01110", "dx",0);
+    dy_arr.SetPrimativeAmrex("plt01110", "dy",0);
+    dz_arr.SetPrimativeAmrex("plt01110", "dz",0);
 
     vector<vector<double>> xyz(3); 
     vector<vector<double>> dxyz(3);
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]){
     dxyz[2] = dz_arr.GetFieldData(); 
     
     float projax[3] = {1, 0, 0}; 
-    float center[3] = {0.5, 0.5, 0.5}; //this code units? 
+    float center[3] = {0.5, 0.5000006, 0.50000001}; 
 
     projax_arr[0] = projax[0]; 
     projax_arr[1] = projax[1]; 
@@ -55,7 +55,7 @@ int main(int argc, char *argv[]){
     cout << xyz[1].size() << endl;   
     cout << xyz[2].size() << endl; 
     cout << x_arr.GetSize() << endl;
-    vector<Healpix_Map<double>> res = project(test_arr.GetFieldData(), xyz, dxyz, center, projax, "density_proj.txt", 32,5); 
+    vector<Healpix_Map<double>> res = project(test_arr.GetFieldData(), xyz, dxyz, center, projax, "density_proj.txt", 512,5); 
     //MPI_Comm_free(&mastercomm); 
     //MPI_Finalize();
     return 0; 

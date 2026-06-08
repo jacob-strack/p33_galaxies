@@ -123,7 +123,7 @@ class flat_array
         int load_data(char *filename, const char *fieldname,int GridID, int size);
         int SetDataAtInd(float data_pt, int ind);
         int SetPrimative(grid *grids, int num_grids, const char *fieldname);
-        int SetPrimativeAmrex(const char *plotfilename, const char *fieldname, int write_file); 
+        //int SetPrimativeAmrex(const char *plotfilename, const char *fieldname, int write_file); 
         int Makexyz(grid *grids, int num_grids, int dim);
         int Makedxyz(grid *grids, int num_grids, int dim);
         int MakeCellVolume(flat_array *dx, flat_array *dy, flat_array *dz);
@@ -159,7 +159,7 @@ int flat_array::WriteData(const char *filename){
     //dset_id = H5Dcreate(file_id, "flat_array", H5T_NATIVE_FLOAT, file_dsp_id, H5P_DEFAULT);
     dset_id = H5Dcreate2(file_id, "flat_array", H5T_NATIVE_FLOAT, file_dsp_id, H5P_DEFAULT,H5P_DEFAULT, H5P_DEFAULT);
     //had float_type_id next line replaced with H5T_NATIVE_FLOAT
-    h5_status = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
+    h5_status = H5Dwrite(dset_id, float_type_id, H5S_ALL, H5S_ALL, H5P_DEFAULT, data.data());
     h5_status = H5Sclose(file_dsp_id); 
     h5_status = H5Dclose(dset_id);
     return 1;
@@ -791,7 +791,7 @@ int grid::allocate_isRefined(int size){
 int ReadListOfInts(FILE *fptr, int N, int nums[], int TestGridID){
 	for(int i = 0; i < N; i++){
 		if(fscanf(fptr, "%d", nums + i) != 1){
-			cout << "AHHHHH SOMETHING BROKEN "<< i << " " <<  N << " " << TestGridID <<  endl;
+			cout << "AHHHHH SOMETHING BROKEN "<< i << " " << N << " " << TestGridID << " " << *(nums + i) << endl;
 			return 0;
 		}
 	}
@@ -843,6 +843,10 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
 			}
 		
 	}
+    else{
+        std::cout << "Error reading GRIDID " << TestGridID << std:: endl; 
+    }
+    cout << "set grid " << TestGridID << " " << count << endl; 
     //start parsing other lines from .hierarchy
 	if(fscanf(fptr, "Task = %d\n", &Task) == 1){ 
 			if(localgrid[count].SetTask(Task) != 1){
@@ -967,7 +971,10 @@ int parse_hierarchy(const char *filename, grid localgrid[], int nodenum){
            cout << "read PPT" << PresentPartTypes[0] << PresentPartTypes[1] << PresentPartTypes[8]<< endl;
         if(fscanf(fptr, "ParticleTypeCounts = %d\n", &PresentTypeCounts) == 1)
             cout << "read PTC" << endl;
-        fscanf(fptr, "ParticleFileName = %s\n", name_part);
+        if(fscanf(fptr, "ParticleFileName = %s\n", name_part) == 1)
+            std::cout << "read particlefilename " << name_part << endl; 
+        else
+            cout << "didnt read particlefilename" << endl; 
     }
     if(NumberOfParticles == 0){
         fscanf(fptr,"PresentParticleTypes = \n");
@@ -1044,7 +1051,7 @@ cout << "Done with ID " << TestGridID << endl;
 
     //set units 
     for(int i = 0; i <= count; i++){
-        SetUnits("TT0000/time0000", localgrid + i);
+        SetUnits("DD0030/galaxy0030", localgrid + i);
     }
 
     //set field_size
@@ -1342,7 +1349,7 @@ int flat_array::SetPrimative(grid *grids, int num_grids, const char *fieldname){
     return 1; 
 }
 
-int flat_array::SetPrimativeAmrex(const char *plotfilename, const char *fieldname, int write_file=1){ 
+/*int flat_array::SetPrimativeAmrex(const char *plotfilename, const char *fieldname, int write_file=1){ 
     //call the python program to load the data and save to a text file 
     std::string pythonScript = "read_amrex_field.py"; 
     std::string file_save_name = "data"; 
@@ -1370,7 +1377,7 @@ int flat_array::SetPrimativeAmrex(const char *plotfilename, const char *fieldnam
     cout << "after " << data[0] << endl;
     file.close(); 
     return 1; 
-}
+}*/
 
 int GetTotalNotRefined(grid *grids, int num_grids){
     int tot_notRefined = 0;
