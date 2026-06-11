@@ -1,15 +1,11 @@
-#include<geos/geom/LinearRing.h>
-#include<geos/geom/GeometryFactory.h>
-#include<geos/geom/Polygon.h>
-#include<geos/algorithm/ConvexHull.h>
-#include<gmp.h>
+//#include<gmp.h>
 #include"proj.h"
 #include<algorithm>
 #include<healpix_base.h>
 #include<healpix_map.h>
 #include<healpix_map_fitsio.h>
 #include<alm.h>
-#include<deque>
+//#include<deque>
 #include<pointing.h>
 #include<Eigen/Dense>
 #include<libqhullcpp/Qhull.h>
@@ -31,8 +27,8 @@ bool cube_fully_inside_cone(vector<vector<double>> corners, vector<vector<double
 bool cube_fully_outside_cone(vector<vector<double>> corners, vector<vector<double>> face_normals, float tol = 1e-10);
 vector<vector<bool>> classify_pixels_for_zone(vector<vector<double>> zone_corners, vector<vector<vector<double>>> cand_side_normals, float tol = 1e-10);
 vector<bool> points_in_cone(vector<vector<double>> pts, vector<vector<double>> side_normals, float tol = 1e-10); 
-pair<vector<vector<vector<double>>>, vector<vector<bool>>> segment_plane_intersections_batch(vector<vector<double>> p0, vector<vector<double>> p1, vector<vector<double>> plane_normals, float tol = 1e-14);
-pair<vector<vector<vector<double>>>, vector<vector<bool>>> ray_plane_intersections_batch(vector<vector<double>> ray_dirs, vector<vector<double>> face_normals, vector<double> face_c, float tol = 1e-14);
+pair<vector<vector<vector<double>>>, vector<vector<bool>>> segment_plane_intersections_batch(vector<vector<double>> p0, vector<vector<double>> p1, vector<vector<double>> plane_normals, float tol = 1e-10);
+pair<vector<vector<vector<double>>>, vector<vector<bool>>> ray_plane_intersections_batch(vector<vector<double>> ray_dirs, vector<vector<double>> face_normals, vector<double> face_c, float tol = 1e-10);
 vector<vector<double>> unique_points(vector<vector<double>> pts, float tol = 1e-10); 
 vector<vector<double>> cube_cone_intersection_vertices_precomputed(vector<vector<double>> corners, vector<vector<double>> edge_p0, vector<vector<double>> edge_p1, vector<vector<double>> face_normals, vector<double> face_c, vector<vector<double>> ray_dirs, vector<vector<double>> side_normals, float tol = 1e-10);
 double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners, vector<vector<double>> edge_p0, vector<vector<double>> edge_p1, vector<vector<double>> face_normals, vector<double> face_c, vector<vector<double>> ray_dirs, vector<vector<double>> side_normals, float tol = 1e-10); 
@@ -196,7 +192,6 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
        for(int i = 0; i < 12; i++){ 
            edge_p0[i] = vector<double>(3); 
            edge_p1[i] = vector<double>(3); 
-           //CHECK
            for(int j = 0; j < 3; j++){
                edge_p0[i][j] = zone_corners[cube_edges[i][0]][j]; 
                edge_p1[i][j] = zone_corners[cube_edges[i][1]][j]; 
@@ -651,7 +646,7 @@ pair<vector<vector<vector<double>>>, vector<vector<bool>>> segment_plane_interse
             numer[i][j] = numer_res; 
         }
     }
-    vector<vector<bool>> valid(denom.size()); //do i need the mask if im looping anyway?  
+    vector<vector<bool>> valid(denom.size());  
     vector<vector<double>> t(denom.size()); 
     for(int i = 0; i < denom.size(); i++){
         valid[i] = vector<bool>(denom[0].size());
@@ -796,7 +791,7 @@ vector<vector<double>> cube_cone_intersection_vertices_precomputed(vector<vector
 }
 
 double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners, vector<vector<double>> edge_p0, vector<vector<double>> edge_p1, vector<vector<double>> face_normals, vector<double> face_c, vector<vector<double>> ray_dirs, vector<vector<double>> side_normals, float tol){
-    vector<vector<double>> verts = cube_cone_intersection_vertices_precomputed(corners, edge_p0, edge_p1, face_normals, face_c, ray_dirs, side_normals, tol=tol);
+    vector<vector<double>> verts = cube_cone_intersection_vertices_precomputed(corners, edge_p0, edge_p1, face_normals, face_c, ray_dirs, side_normals, tol=1e-9);
     if(verts.empty())
         return 0.0;
     if(verts.size() < 4)
@@ -818,8 +813,16 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
         for(int j = 0; j < centered[0].size(); j++)
             mat(i,j) = centered[i][j]; 
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(mat, Eigen::ComputeThinU | Eigen::ComputeThinV); 
-    if(svd.rank() < 3)
+    int rank = 0; 
+    for(int i = 0; i < svd.singularValues().size(); i++)
+        if(svd.singularValues()(i) > 1e-9)
+            rank++;
+    if(rank < 3)
         return 0.0;
+    cout << "rank " << rank << endl; 
+    cout << "points" << endl;
+    for(int i = 0; i < verts.size(); i++) 
+        cout << centered[i][0] << " " << centered[i][1] << " " << centered[i][2] << endl;
     //qhull wants a flat vector
     vector<double> flat_points(3 * centered.size()); 
     for(int i = 0; i < centered.size(); i++){ 
