@@ -341,7 +341,7 @@ vector<bool> points_in_cube(vector<vector<double>> pts, vector<vector<double>> f
     vector<vector<bool>> vals(pts.size());
     vector<bool> collapsed_vals(pts.size()); 
     for(int i = 0; i < pts.size(); i++){
-        vals[i] = vector<bool>(3);
+        vals[i] = vector<bool>(6);
         collapsed_vals[i] = true; 
     }  
     for(int i = 0; i < pts.size(); i++) 
@@ -576,21 +576,26 @@ vector<vector<bool>> classify_pixels_for_zone(vector<vector<double>> zone_corner
         res[i] = vector<bool>(cand_side_normals.size()); 
     for(int i = 0; i < cand_side_normals.size(); i++){ 
         res[0][i] = true;//check for fully inside  
-        res[1][i] = true; //check for fully outside
+        res[1][i] = false; //check for fully outside
         for(int j = 0; j < 8; j++){
             for(int k = 0; k < 4; k++){
                 if(vals[i][j][k] < -1.0*tol)
                     res[0][i] = false; 
             }
         }
-        bool outside_check = true; 
-        for(int k = 0; k < 4; k++)
+        for(int k = 0; k < 4; k++){
+            bool outside_check = true; 
             for(int j = 0; j < 8; j++){
-                if(vals[i][j][k] >= -1.0*tol)
+                if(vals[i][j][k] >= -1.0*tol){
                     outside_check = false; 
+                    break;
+                }
             }
-        if(outside_check == false) 
-            res[1][i] = false; 
+            if(outside_check){
+                res[1][i] = true; 
+                break; 
+            }
+        }
         //if neither fully inside or outside, needs exact intersection
         if(!(res[0][i] || res[1][i]))
             res[2][i] = true; 
@@ -831,7 +836,7 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
     }
     //cout << "about to run qhull" << endl; 
     //make convex hull 
-    orgQhull::Qhull qhull("", 3, flat_points.size()/3, flat_points.data(), "s"); 
+    orgQhull::Qhull qhull("Qt", 3, flat_points.size()/3, flat_points.data(), "s"); 
     return qhull.volume(); 
 }
 
