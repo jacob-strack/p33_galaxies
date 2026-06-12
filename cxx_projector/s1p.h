@@ -1,11 +1,9 @@
-//#include<gmp.h>
 #include"proj.h"
 #include<algorithm>
 #include<healpix_base.h>
 #include<healpix_map.h>
 #include<healpix_map_fitsio.h>
 #include<alm.h>
-//#include<deque>
 #include<pointing.h>
 #include<Eigen/Dense>
 #include<libqhullcpp/Qhull.h>
@@ -627,12 +625,13 @@ pair<vector<vector<vector<double>>>, vector<vector<bool>>> segment_plane_interse
     for(int i = 0; i < d.size(); i++){
         denom[i] = vector<double>(plane_normals.size());
         numer[i] = vector<double>(plane_normals.size());
-        d[i] = vector<double>(plane_normals.size()); 
+        d[i] = vector<double>(3); 
         pts[i] = vector<vector<double>>(plane_normals.size());
-        for(int j = 0; j < plane_normals.size(); j++){
-            pts[i][j] = vector<double>(3); 
+        for(int j = 0; j < 3; j++){
             d[i][j] = p1[i][j] - p0[i][j]; 
         }
+        for(int j = 0; j < plane_normals.size(); j++)
+            pts[i][j] = vector<double>(3); 
     }
     for(int i = 0; i < d.size(); i++){
         for(int j = 0; j < plane_normals.size(); j++){
