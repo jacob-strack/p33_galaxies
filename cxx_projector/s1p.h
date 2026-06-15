@@ -840,7 +840,7 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
     }
     //cout << "about to run qhull" << endl; 
     //make convex hull 
-    orgQhull::Qhull qhull("Qt", 3, flat_points.size()/3, flat_points.data(), "s"); 
+    orgQhull::Qhull qhull("", 3, flat_points.size()/3, flat_points.data(), "Qt"); 
     return qhull.volume(); 
 }
 
