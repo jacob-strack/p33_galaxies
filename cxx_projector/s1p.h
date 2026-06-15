@@ -309,8 +309,12 @@ vector<vector<double>> cube_face_planes(vector<vector<double>> corners, float to
             vector<double> p0 = {corners[cube_faces[ind][0]][0], corners[cube_faces[ind][0]][1], corners[cube_faces[ind][0]][2]}; 
             vector<double> p1 = {corners[cube_faces[ind][1]][0], corners[cube_faces[ind][1]][1], corners[cube_faces[ind][1]][2]}; 
             vector<double> p2 = {corners[cube_faces[ind][2]][0], corners[cube_faces[ind][2]][1], corners[cube_faces[ind][2]][2]};
-            vector<double> p1mp0 = p1 - p0; 
-            vector<double> p2mp0 = p2 - p0; 
+            vector<double> p1mp0(3); 
+            vector<double> p2mp0(3);
+            for(int k = 0; k < 3; k++){
+                p1mp0[k] = p1[k] - p0[k]; 
+                p2mp0[k] = p2[k] - p0[k]; 
+            }
             vector<double> n(3); //result of cross product between p1mp0 and p2mp0
             //do the cross product between the vectors (there isn't a built-in cross product for vectors) 
             n[0] = p1mp0[1]*p2mp0[2] - p1mp0[2]*p2mp0[1]; 
@@ -376,7 +380,7 @@ vector<vector<double>> order_boundary_vecs_ccw(vector<vector<double>> ray_dirs, 
     for(int i = 0; i < 3; i++) 
         center_vec[i] /= norm; 
     vector<double> ref = {0.0, 0.0, 0.0}; 
-    if(abs(center_vec[2] < 0.9))
+    if(abs(center_vec[2]) < 0.9)
         ref = {0.0, 0.0, 1.0};
     else{ref = {1.0, 0.0, 0.0};}
     vector<double> e1 = {0.0, 0.0, 0.0}; 
