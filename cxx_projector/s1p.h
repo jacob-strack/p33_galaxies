@@ -66,7 +66,9 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
             mask[i] = true;
             Nz++; 
         }
-        
+        else if(r[i] > 0.25){
+            mask[i] = false;
+        }
         else
             mask[i] = false; 
     }
@@ -88,10 +90,11 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
     vector<vector<vector<double>>> corners(8); 
     vector<vector<double>> center_vecs(3);
     float shifter[8][3] = {{-0.5, -0.5, -0.5}, {-0.5, -0.5, 0.5}, {0.5,-0.5,0.5},{0.5,-0.5,-0.5},{0.5,0.5,-0.5},{0.5,0.5,0.5},{-0.5,0.5,0.5},{-0.5,0.5,-0.5}};
+    for(int i = 0; i < 3; i++) 
+        center_vecs[i] = vector<double>(xyz[0].size()); 
     for(int i = 0; i < 8; i++){
         corners[i] = vector<vector<double>>(3); 
         for(int j = 0; j < 3; j++){
-            center_vecs[j] = vector<double>(xyz[0].size());
             corners[i][j] = vector<double>(xyz[0].size());
             for(int k = 0; k < xyz[0].size(); k++){
                 corners[i][j][k] = xyz[j][k] + dxyz[j][k]*shifter[i][j]; 
@@ -823,10 +826,12 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
     Eigen::JacobiSVD<Eigen::MatrixXd> svd(mat, Eigen::ComputeThinU | Eigen::ComputeThinV); 
     int rank = 0; 
     for(int i = 0; i < svd.singularValues().size(); i++)
-        if(svd.singularValues()(i) > 1e-9)
+        if(svd.singularValues()(2) > 1e-8 * svd.singularValues()(0))
             rank++;
     if(rank < 3)
         return 0.0;
+    if(svd.singularValues()(2) < 1e-6 * svd.singularValues()(0)) 
+        return 0.0; 
     cout << "rank " << rank << endl; 
     cout << "points" << endl;
     for(int i = 0; i < verts.size(); i++) 
@@ -840,7 +845,7 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
     }
     //cout << "about to run qhull" << endl; 
     //make convex hull 
-    orgQhull::Qhull qhull("", 3, flat_points.size()/3, flat_points.data(), "Qt"); 
+    orgQhull::Qhull qhull("", 3, flat_points.size()/3, flat_points.data(), "Qt QJ"); 
     return qhull.volume(); 
 }
 
