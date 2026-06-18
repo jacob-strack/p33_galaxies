@@ -166,9 +166,9 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
         } 
     }
    std::cout << "About to start zone loop" << std::endl;    
-   //ZONE LOOOOOOOOOOOOOOOOOOOOOP 
    int debug_ind = 0;
-   cout << "Nz " << Nz << endl; 
+   cout << "Nz " << Nz << endl;
+   //loop over zones, calculate intersections, fill output maps
    for(int izone = 0; izone < xyz[0].size(); izone++){
        cout << "izone " << izone << " " << xyz[0].size() << endl;
        if(mask[izone]==false){
@@ -840,7 +840,7 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
     }
     //cout << "about to run qhull" << endl; 
     //make convex hull 
-    orgQhull::Qhull qhull("", 3, flat_points.size()/3, flat_points.data(), "Qt QJ"); 
+    orgQhull::Qhull qhull("", 3, flat_points.size()/3, flat_points.data(), "Qt QJ Pp"); 
     return qhull.volume(); 
 }
 
