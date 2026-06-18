@@ -31,7 +31,7 @@ vector<vector<double>> unique_points(vector<vector<double>> pts, float tol = 1e-
 vector<vector<double>> cube_cone_intersection_vertices_precomputed(vector<vector<double>> corners, vector<vector<double>> edge_p0, vector<vector<double>> edge_p1, vector<vector<double>> face_normals, vector<double> face_c, vector<vector<double>> ray_dirs, vector<vector<double>> side_normals, float tol = 1e-10);
 double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners, vector<vector<double>> edge_p0, vector<vector<double>> edge_p1, vector<vector<double>> face_normals, vector<double> face_c, vector<vector<double>> ray_dirs, vector<vector<double>> side_normals, float tol = 1e-10); 
 
-vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> xyz, vector<vector<double>> dxyz, float center[3], float projax[3], const char* filename, int NSIDE, int exclude){
+vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> xyz, vector<vector<double>> dxyz, float center[3], float projax[3], const char* filename, int NSIDE, int exclude, float max_r = 1.0){
     vector<vector<int>> cube_edges = {{0,1},{1,2},{2,3},{3,0},
                                           {4,5},{5,6},{6,7},{7,4},
                                           {0,7},{1,6},{2,5},{3,4}};
@@ -66,7 +66,7 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
             mask[i] = true;
             Nz++; 
         }
-        else if(r[i] > 0.25){
+        else if(r[i] > max_r){
             mask[i] = false;
         }
         else
@@ -219,11 +219,6 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
                     cand_side_normals[i][j][k] = healpix_cache[pix_nums[i]][j+5][k];
                     ray_dirs[i][j][k] = healpix_cache[pix_nums[i]][j+1][k]; 
                }
-               if(pix_nums[i] == 4032){
-                    cout << "norms " << cand_side_normals[i][j][0] << " " << cand_side_normals[i][j][1] << " " << cand_side_normals[i][j][2] << endl;
-                    cout << "ray_dirs " << ray_dirs[i][j][0] << " " << ray_dirs[i][j][1] << " " << ray_dirs[i][j][2] << endl;
-                
-                }
            }
         }
        vector<vector<bool>> classify = classify_pixels_for_zone(zone_corners, cand_side_normals);

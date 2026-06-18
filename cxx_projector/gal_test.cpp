@@ -76,7 +76,7 @@ int main(int argc, char *argv[]){
         cout << "end of setderived" << endl; 
         cout.flush();
         //vector<Healpix_Map<double>> res = project(derived_test.GetFieldData(), xyz, dxyz, center, projax,"U_map.txt", 32, 5);
-        vector<Healpix_Map<double>> res = project(Density.GetFieldData(), xyz, dxyz, center, projax,"Density_map.txt", 128, 5);
+        vector<Healpix_Map<double>> res = project(Density.GetFieldData(), xyz, dxyz, center, projax,"Density_map.txt", 128, 5, 0.25);
     }
         MPI_Comm_free(&mastercomm); 
         MPI_Finalize();
