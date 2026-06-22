@@ -45,8 +45,6 @@ vector<double> make_wire(int N){
     double dx = 1/(double)N;
     double min = 1/(double(2*N)); 
     double max = 1 - min; 
-    cout << dx << endl;
-    cout << min << " " << max << endl;
     vector<double> cube((int)pow(N,3)); 
     //double ans[3][(int)pow(N,3)]; 
     double xyz[3];

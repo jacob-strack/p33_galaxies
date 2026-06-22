@@ -167,7 +167,6 @@ int flat_array::WriteData(const char *filename){
 
 double flat_array::GetTotal(){
     double total = 0.0;
-    cout << "GetTotal fsize " << data.size() << endl;
     for(int i = 0; i < data.size(); i++){
         if(data[i] != data[i]){
             cout << "Somethin's nan " << i << endl;
@@ -791,7 +790,7 @@ int grid::allocate_isRefined(int size){
 int ReadListOfInts(FILE *fptr, int N, int nums[], int TestGridID){
 	for(int i = 0; i < N; i++){
 		if(fscanf(fptr, "%d", nums + i) != 1){
-			cout << "AHHHHH SOMETHING BROKEN "<< i << " " << N << " " << TestGridID << " " << *(nums + i) << endl;
+			cout << "SOMETHING BROKEN "<< i << " " << N << " " << TestGridID << " " << *(nums + i) << endl;
 			return 0;
 		}
 	}

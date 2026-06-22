@@ -159,7 +159,6 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
    for(int izone = 0; izone < xyz[0].size(); izone++){
        cout << "izone " << izone << " " << xyz[0].size() << endl;
        if(mask[izone]==false){
-           cout << "mask false iter" << endl; 
            continue;
         }
        double quantity = zone_emission[izone]; 
