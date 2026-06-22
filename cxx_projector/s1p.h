@@ -59,15 +59,12 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
         r[i] = sqrt(r[i]);
         nxyz[i] = r[i] / max(cell_scale[i], min); 
     }
-    vector<bool> mask(r.size()); //mask out close points 
+    vector<bool> mask(r.size()); //mask out close points and points beyond truncation radius
     int Nz = 0; 
     for(int i = 0; i < r.size(); i++){
-        if(nxyz[i] > exclude){
+        if(nxyz[i] > exclude && r[i] < max_r){
             mask[i] = true;
-            Nz++; 
-        }
-        else if(r[i] > max_r){
-            mask[i] = false;
+            Nz++;
         }
         else
             mask[i] = false; 
@@ -80,13 +77,11 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
     counts.fill(0); 
     output.fill(0);
     //rotate axes 
-    cout << "Rotation " << endl; 
     float no_center[3] = {0.0, 0.0, 0.0};//duct tape for now where i dont want the fucntion
                                          //to shift anymore bc i already did it earlier
     vector<vector<double>> xyz_p = rotate(xyz, projax, no_center); 
 
     //shifter object
-    cout << "Shifter " << endl;
     vector<vector<vector<double>>> corners(8); 
     vector<vector<double>> center_vecs(3);
     float shifter[8][3] = {{-0.5, -0.5, -0.5}, {-0.5, -0.5, 0.5}, {0.5,-0.5,0.5},{0.5,-0.5,-0.5},{0.5,0.5,-0.5},{0.5,0.5,0.5},{-0.5,0.5,0.5},{-0.5,0.5,-0.5}};
@@ -102,11 +97,9 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
             }
         }
     }
-    cout << "rotate " << endl; 
     for(int i = 0; i < 8; i++)
         corners[i] = rotate(corners[i], projax, no_center);
     vector<vector<vector<double>>> corner_vecs = corners;    
-    cout << "unit vectors " << endl; 
     //get the unit vectors for the centers and the corners using rotated frame 
     vector<vector<double>> dots(8);
     vector<double> circle_radius(xyz[0].size()); 
@@ -135,7 +128,6 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
         
 
     //accumulation things 
-    std::cout << "set up accumulation" << std::endl;
     vector<float> r_sq(xyz[0].size());
     vector<float> zone_volume(xyz[0].size()); 
     vector<float> zone_emission(xyz[0].size());
@@ -145,10 +137,7 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
         //zone_emission[i] = cube[i]/r_sq[i]*zone_volume[i];
         //change zone emission to cube * zone_volume and use unit vectors later 
         zone_emission[i] = cube[i] * zone_volume[i]; 
-        if(mask[i] == true)
-            cout << "cube " << i << " " << cube[i] << endl;
     }
-    cout << "corner angles " << endl; 
     //get angles at edges of zone
     vector<vector<vector<double>>> corner_angles(8); 
     for(int i = 0; i < 8; i++){
@@ -165,9 +154,7 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
             }
         } 
     }
-   std::cout << "About to start zone loop" << std::endl;    
    int debug_ind = 0;
-   cout << "Nz " << Nz << endl;
    //loop over zones, calculate intersections, fill output maps
    for(int izone = 0; izone < xyz[0].size(); izone++){
        cout << "izone " << izone << " " << xyz[0].size() << endl;
@@ -209,7 +196,6 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
        vector<vector<vector<double>>> cand_side_normals(pix_nums.size()); 
        vector<vector<vector<double>>> ray_dirs(pix_nums.size());
        for(int i = 0; i < pix_nums.size(); i++){
-           cout << "pix " << pix_nums[i] << endl;
            cand_side_normals[i] = vector<vector<double>>(4);
            ray_dirs[i] = vector<vector<double>>(4);
            for(int j = 0; j < 4; j++){
@@ -244,14 +230,11 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
                     cout << "negative volume iter" << endl; 
                     continue; //safeguard 
                 }
-                cout << "intersect volume " << izone << " " << pix_nums[i] << " "  << intersect_volume << endl; 
                 double overlap_fraction = intersect_volume / max(this_zone_volume, 1.0e-30); 
                 double net_light = quantity*overlap_fraction; 
                 output[pix_nums[i]] += net_light; 
                 counts[pix_nums[i]] += intersect_volume; 
             }
-            if(!classify[0][i] && !classify[2][i])
-                cout << "fully outside pixel " << pix_nums[i] << endl;
         }
     }
     ofstream outfile(filename); 
@@ -263,7 +246,6 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
     vector<Healpix_Map<double>> out_maps(2); 
     out_maps.push_back(output); 
     out_maps.push_back(counts);
-    cout << "done projector" << endl;
     return out_maps;
 }
 
@@ -827,10 +809,6 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
         return 0.0;
     if(svd.singularValues()(2) < 1e-6 * svd.singularValues()(0)) 
         return 0.0; 
-    cout << "rank " << rank << endl; 
-    cout << "points" << endl;
-    for(int i = 0; i < verts.size(); i++) 
-        cout << centered[i][0] << " " << centered[i][1] << " " << centered[i][2] << endl;
     //qhull wants a flat vector
     vector<double> flat_points(3 * centered.size()); 
     for(int i = 0; i < centered.size(); i++){ 
@@ -838,7 +816,6 @@ double cube_cone_intersection_volume_precomputed(vector<vector<double>> corners,
             flat_points[3*i + j] = centered[i][j]; 
         }
     }
-    //cout << "about to run qhull" << endl; 
     //make convex hull 
     orgQhull::Qhull qhull("", 3, flat_points.size()/3, flat_points.data(), "Qt QJ Pp"); 
     return qhull.volume(); 
