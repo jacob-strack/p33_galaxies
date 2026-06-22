@@ -1096,10 +1096,6 @@ int Distribute_Grids(grid grids[],int num_nodes, int global_rank, const char *fi
 	int total_grids = GetNumberOfGrids(filename);
 	int lower_grid = node_num * (total_grids / num_nodes) + 1; //lower bound of indices of grids to read on each proc 
 	int upper_grid = (node_num + 1) * (total_grids / num_nodes); //upper bound of indices of grids to read on each proc
-    cout << "node_num " << node_num << endl; 
-    cout << "lower " << lower_grid << endl;
-    cout << "upper " << upper_grid << endl;
-    cout << "total grids " << total_grids << endl;
     if(total_grids % 2 == 1 and node_num == num_nodes - 1){ //catch last grid if odd number of total grids
         upper_grid++; 
     }
@@ -1394,7 +1390,6 @@ int GetTotalNotRefined(grid *grids, int num_grids){
 
 int flat_array::Makexyz(grid *grids, int num_grids, int dim){
     int ind = 0; 
-    cout << "start makexyz" << endl;
     for(int i = 0; i < num_grids; i++){
         grid *currentgrid = grids + i; 
         if(currentgrid->GetGridID() == 0){continue;}
@@ -1405,7 +1400,6 @@ int flat_array::Makexyz(grid *grids, int num_grids, int dim){
             data.push_back(xyz_arr[dim][NotRefinedInds[j]]);
         }
     }
-    cout << "done with makexyz" << endl;
     return 1;
 }
 int flat_array::Makedxyz(grid *grids, int num_grids, int dim){
@@ -1416,12 +1410,10 @@ int flat_array::Makedxyz(grid *grids, int num_grids, int dim){
         currentgrid->make_xyz();
         vector<int> NotRefinedInds = currentgrid->GetNotRefinedInd();
         vector<vector<double>>dxyz_arr = currentgrid->Get_dxyz();
-        cout.flush();
         for(int j = 0; j < currentgrid->GetNumNotRefined(); j++){
             data.push_back(dxyz_arr[dim][NotRefinedInds[j]]);
         }
     }
-    cout << "Makedxyz size2 " << data.size() << endl;
     return 1;
 }
 
@@ -1430,11 +1422,9 @@ int flat_array::MakeCellVolume(flat_array *dx, flat_array *dy, flat_array *dz){
     if(data.size() == 0){
         vector<double> data(dx->data.size()); 
     }
-    cout << "dx fsize CV " << dx->data.size() << endl;
     for(int j = 0; j < dx->data.size(); j++){
             data[j] = dx->data[j]*dy->data[j]*dz->data[j]; 
     }
-    cout << "Cell Volume Test " << data[100] << endl;
     return 1;
 }
     
@@ -1444,20 +1434,16 @@ int flat_array::SetDerivedFlatArray(vector<double> (*func)(vector<double>, va_li
     va_start(args, in1);
     data = func(in1, args);
     va_end(args);
-    cout << "Done setting data" << endl;
     return 1;
 }
 
 int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num_bins_x, int num_bins_y, float x_lower, float x_upper, float y_lower, float y_upper, int log){
-    cout << "starting plot_array" << endl;
-    cout << "sizes " << x_arr.GetSize() << " " << y_arr.GetSize() << " " << fill_arr.GetSize() << endl;
     float **histo = new float*[num_bins_y]; 
     for(int i = 0; i < num_bins_y; i++)
         histo[i] = new float[num_bins_x];
     int **counts = new int*[num_bins_y];
     for(int i = 0; i < num_bins_y; i++)
         counts[i] = new int[num_bins_x];
-    cout << "After declaring arrays" << endl;
     float min_x;
     float min_y;
     float max_x; 
@@ -1467,7 +1453,6 @@ int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num
     vector<double> x_data = x_arr.GetFieldData(); 
     vector<double> y_data = y_arr.GetFieldData(); 
     vector<double> fill_data = fill_arr.GetFieldData();
-    cout << "zeroing histograms" << endl;
     for(int i = 0; i < num_bins_y; i++){
         for(int j = 0; j < num_bins_x; j++){
             histo[i][j] = 0;
@@ -1478,7 +1463,6 @@ int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num
     max_x = x_upper; 
     min_y = y_lower; 
     max_y = y_upper;
-    cout << min_x << " " << max_x << " " << min_y << " " << max_y << endl;
     for(int i = 0; i < x_arr.GetSize(); i++){
         x_data[i] -= min_x;
         y_data[i] -= min_y;
@@ -1511,14 +1495,11 @@ int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num
             } 
         }
     }
-    cout << "max data " << max_data << " " << min_data << endl; 
     int num_pix_x = num_bins_x; 
     int num_pix_y = num_bins_y;
     unsigned char **RGB_data = new unsigned char*[num_bins_y]; 
     for(int i = 0; i < num_bins_y; i++)
         RGB_data[i] = new unsigned char[3*num_bins_x];
-    cout << "min/max " << min_data << " " << max_data << endl;
-    cout << "log min/max" << log10(min_data) << " " << log10(max_data) << endl;
     for(int i = 0; i < num_pix_y; i++){
         for(int j = 0; j < 3*num_pix_x; j++){
             RGB_data[i][j] = 0;
@@ -1529,7 +1510,6 @@ int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num
     for(int ind = 0; ind < 5; ind++){
         data_pts[ind] = log10(min_data) + ((float) ind /  4.0) * (log10(max_data) - log10(min_data));
     }
-    cout << data_pts[2] << endl;
     }
     else{
     for(int ind = 0; ind < 5; ind++){
@@ -1656,7 +1636,6 @@ int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num
             }
         }
     }
-    cout << "past setting rgb vals" << endl;
     int height = num_pix_y; 
     int width = num_pix_x; 
     //Now make the png file 
@@ -1680,11 +1659,8 @@ int plot_array(flat_array x_arr, flat_array y_arr, flat_array fill_arr,  int num
     for(int i = 0; i < height; i++){
         png_write_row(png_ptr, (png_bytep)RGB_data[i]);
     }
-    cout << "done writing rows" << endl;
     png_write_end(png_ptr, NULL); 
-    cout << "wrote end" << endl;
     fclose(fp);
-    cout << "closed file ptr" << endl;
 
     for(int i = 0; i < num_bins_y; i++){
         delete[] histo[i]; 
