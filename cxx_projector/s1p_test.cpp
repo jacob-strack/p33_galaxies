@@ -13,7 +13,7 @@ int main(){
     vector<vector<double>> b = make_xyz(size); 
     vector<vector<double>> c = make_dxyz(size); 
     float projax[3] = {1.,0.,0.}; 
-    float center[3] = {0.0,0.0,0.5}; 
+    float center[3] = {0.25,0.25,0.25}; 
     cout << "about to project" << endl; 
     cout.flush();
     vector<Healpix_Map<double>> d = project(a, b, c, center, projax, "plot_array.txt", 32, 2);  

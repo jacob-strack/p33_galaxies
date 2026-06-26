@@ -10,8 +10,8 @@ vector<double> make_cube(int N);
 vector<double> make_wire(int N); 
 vector<vector<double>> make_xyz(int N);
 vector<vector<double>> make_dxyz(int N);
-vector<vector<double>> rotate(vector<vector<double>> xyz, float projax[3], float center[3]); 
-vector<vector<double>> make_phi_theta(vector<vector<double>> xyz, float projax[3], float center[3]);
+vector<vector<double>> rotate(vector<vector<double>> xyz, vector<double> projax = {0.0, 0.0, 1.0}, vector<double> center = {0.0,0.0,0.0}); 
+vector<vector<double>> make_phi_theta(vector<vector<double>> xyz, vector<double> projax = {0.0,0.0,1.0}, vector<double> center = {0.0,0.0,0.0});
 
 vector<double> make_cube(int N){
     double dx = 1/(double)N;
@@ -95,7 +95,7 @@ vector<vector<double>> make_dxyz(int N){
     return dxyz; 
 }
 
-vector<vector<double>> rotate(vector<vector<double>> xyz, float projax[3], float center[3]){
+vector<vector<double>> rotate(vector<vector<double>> xyz, vector<double> projax, vector<double> center){
     vector<vector<double>> xyz_p(3); 
     for(int i = 0; i < 3; i++)
         xyz_p[i] = vector<double>(xyz[0].size()); 
@@ -123,7 +123,7 @@ vector<vector<double>> rotate(vector<vector<double>> xyz, float projax[3], float
     return xyz_new;
 }
 
-vector<vector<double>> make_phi_theta(vector<vector<double>> xyz, float projax[3], float center[3]){
+vector<vector<double>> make_phi_theta(vector<vector<double>> xyz, vector<double> projax, vector<double> center){
     //vector<vector<double>> xyz_n = rotate(xyz, projax, center); 
     vector<vector<double>> angles(2);
     for(int i = 0; i < 2; i++)
