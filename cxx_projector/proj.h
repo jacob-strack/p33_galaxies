@@ -70,10 +70,7 @@ vector<double> make_wire(int N){
 
 vector<vector<double>> make_xyz(int N){ 
     double dx = 1./N;
-    vector<vector<double>> xyz(3); 
-    for(int dim = 0; dim < 3; dim++){
-        xyz[dim] = vector<double>((int)pow(N,3));
-    }
+    vector<vector<double>> xyz(3,vector<double>((int)pow(N,3))); 
     for(int j = 0; j < (int)pow(N,3); j++){
         xyz[2][j] = (0.5 + (double)(j%N)) * dx; 
         xyz[1][j] = (0.5 + (double)((j/N)%N)) * dx; 
@@ -84,9 +81,7 @@ vector<vector<double>> make_xyz(int N){
 
 vector<vector<double>> make_dxyz(int N){ 
     double dx = 1./N;
-    vector<vector<double>> dxyz(3);
-    for(int dim = 0; dim < 3; dim++)
-        dxyz[dim] = vector<double>((int)pow(N,3));
+    vector<vector<double>> dxyz(3,vector<double>((int)pow(N,3)));
     for(int j = 0; j < (int)pow(N,3); j++){
         dxyz[2][j] = dx; 
         dxyz[1][j] = dx; 
@@ -96,9 +91,7 @@ vector<vector<double>> make_dxyz(int N){
 }
 
 vector<vector<double>> rotate(vector<vector<double>> xyz, vector<double> projax, vector<double> center){
-    vector<vector<double>> xyz_p(3); 
-    for(int i = 0; i < 3; i++)
-        xyz_p[i] = vector<double>(xyz[0].size()); 
+    vector<vector<double>> xyz_p(3, vector<double>(xyz[0].size())); 
     for(int i = 0; i < xyz[0].size(); i++){
         xyz_p[0][i] = xyz[0][i] - center[0];  
         xyz_p[1][i] = xyz[1][i] - center[1];  
@@ -112,9 +105,7 @@ vector<vector<double>> rotate(vector<vector<double>> xyz, vector<double> projax,
     double z_p[3] = {projax[0], projax[1], projax[2]}; 
     double y_p[3] = {-1*sin(phi), cos(phi), 0};
     double x_p[3] = {cos(theta)*cos(phi), cos(theta)*sin(phi), -1*sin(theta)};
-    vector<vector<double>> xyz_new(3); 
-    for(int i = 0; i < 3; i++)
-        xyz_new[i] = vector<double>(xyz[0].size()); 
+    vector<vector<double>> xyz_new(3, vector<double>(xyz[0].size())); 
     for(int i = 0; i < xyz[0].size(); i++){
         xyz_new[0][i] = xyz_p[0][i]*x_p[0] + xyz_p[1][i]*x_p[1] + xyz_p[2][i]*x_p[2]; 
         xyz_new[1][i] = xyz_p[0][i]*y_p[0] + xyz_p[1][i]*y_p[1] + xyz_p[2][i]*y_p[2]; 
@@ -125,9 +116,7 @@ vector<vector<double>> rotate(vector<vector<double>> xyz, vector<double> projax,
 
 vector<vector<double>> make_phi_theta(vector<vector<double>> xyz, vector<double> projax, vector<double> center){
     //vector<vector<double>> xyz_n = rotate(xyz, projax, center); 
-    vector<vector<double>> angles(2);
-    for(int i = 0; i < 2; i++)
-        angles[i] = vector<double>(xyz[0].size()); 
+    vector<vector<double>> angles(2, vector<double>(xyz[0].size()));
     for(int i = 0; i < xyz[0].size(); i++){
         angles[1][i] = M_PI - acos(xyz[0][i] / sqrt(pow(xyz[0][i],2) + pow(xyz[1][i],2) + pow(xyz[2][i],2)));
         angles[0][i] = atan2(xyz[1][i], xyz[2][i]);

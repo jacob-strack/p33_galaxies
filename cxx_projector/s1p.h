@@ -175,11 +175,9 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
         }
        //per-zone geometry precompute
        vector<vector<double>> cube_face_pl = cube_face_planes(zone_corners);  
-       vector<vector<double>> edge_p0(12); 
-       vector<vector<double>> edge_p1(12);
+       vector<vector<double>> edge_p0(12,std::vector<double>(3, 0.0)); 
+       vector<vector<double>> edge_p1(12,std::vector<double>(3,0.0));
        for(int i = 0; i < 12; i++){ 
-           edge_p0[i] = vector<double>(3); 
-           edge_p1[i] = vector<double>(3); 
            for(int j = 0; j < 3; j++){
                edge_p0[i][j] = zone_corners[cube_edges[i][0]][j]; 
                edge_p1[i][j] = zone_corners[cube_edges[i][1]][j]; 
@@ -194,14 +192,10 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
            continue;
         }
        //unit vectors for sides of zones and for rays 
-       vector<vector<vector<double>>> cand_side_normals(pix_nums.size()); 
-       vector<vector<vector<double>>> ray_dirs(pix_nums.size());
+       vector<vector<vector<double>>> cand_side_normals(pix_nums.size(),vector<vector<double>>(4,vector<double>(3,0.0))); 
+       vector<vector<vector<double>>> ray_dirs(pix_nums.size(), vector<vector<double>>(4,vector<double>(3,0.0)));
        for(int i = 0; i < pix_nums.size(); i++){
-           cand_side_normals[i] = vector<vector<double>>(4);
-           ray_dirs[i] = vector<vector<double>>(4);
            for(int j = 0; j < 4; j++){
-               cand_side_normals[i][j] = vector<double>(3);
-               ray_dirs[i][j] = vector<double>(3);
                for(int k = 0; k < 3; k++){
                     cand_side_normals[i][j][k] = healpix_cache[pix_nums[i]][j+5][k];
                     ray_dirs[i][j][k] = healpix_cache[pix_nums[i]][j+1][k]; 
@@ -270,9 +264,7 @@ vector<vector<double>> cube_face_planes(vector<vector<double>> corners, float to
                                       {4,5,6,7},
                                       {0,3,4,7},
                                       {1,2,5,6}};
-    vector<vector<double>> res(4);
-    for(int ind = 0; ind < 4; ind++)
-        res[ind] = vector<double>(6); 
+    vector<vector<double>> res(4, vector<double>(6,0.0));
       
     //get center of cube 
     vector<double> center(3);
@@ -282,12 +274,8 @@ vector<vector<double>> cube_face_planes(vector<vector<double>> corners, float to
         }
          center[dim] /= 8.0; 
     }
-    vector<vector<double>> normals(6); 
-    for(int ind = 0; ind < 6; ind++)
-        normals[ind] = vector<double>(3); 
-    vector<double> c(6); 
-    for(int ind = 0; ind < 6; ind++)
-        c[ind] = 0.0; 
+    vector<vector<double>> normals(6, vector<double>(3, 0.0)); 
+    vector<double> c(6, 0.0); 
     for(int ind = 0; ind < 6; ind++){
             vector<double> p0 = {corners[cube_faces[ind][0]][0], corners[cube_faces[ind][0]][1], corners[cube_faces[ind][0]][2]}; 
             vector<double> p1 = {corners[cube_faces[ind][1]][0], corners[cube_faces[ind][1]][1], corners[cube_faces[ind][1]][2]}; 
@@ -327,17 +315,11 @@ vector<vector<double>> cube_face_planes(vector<vector<double>> corners, float to
 //function to classify if points lie within a cube or not 
 vector<bool> points_in_cube(vector<vector<double>> pts, vector<vector<double>> face_normals, vector<double> face_c, float tol){
     //store results
-    vector<vector<bool>> vals(pts.size());
-    vector<bool> collapsed_vals(pts.size()); 
-    for(int i = 0; i < pts.size(); i++){
-        vals[i] = vector<bool>(6); 
-        //assume that the point is in the cube, check for coordinates not in cube iteratively 
-        collapsed_vals[i] = true; 
-    }  
+    vector<vector<bool>> vals(pts.size(), vector<bool>(6,true));
+    vector<bool> collapsed_vals(pts.size(), true); 
     for(int i = 0; i < pts.size(); i++) 
         for(int j = 0; j < 6; j++){
             double res = 0.0;
-            vals[i][j] = true; 
             for(int k = 0; k < 3; k++){
                 res += pts[i][k] * face_normals[k][j]; //pts dot face_normals 
             }
@@ -418,9 +400,7 @@ vector<vector<double>> order_boundary_vecs_ccw(vector<vector<double>> ray_dirs, 
 
 //function to get inward normal vectors to cone, used in calculating if point in interior to cone   
 vector<vector<double>> cone_side_normals(vector<vector<double>> ray_dirs){
-    vector<vector<double>> res(8);
-    for(int i = 0; i < 8; i++)
-        res[i] = vector<double>(3); 
+    vector<vector<double>> res(8, vector<double>(3,0.0));
     for(int i = 0; i < 4; i++){ 
         //normalize ray vectors 
         double norm = sqrt(ray_dirs[i][0]*ray_dirs[i][0] + ray_dirs[i][1]*ray_dirs[i][1] + ray_dirs[i][2]*ray_dirs[i][2]);
@@ -483,21 +463,11 @@ vector<vector<double>> cone_side_normals(vector<vector<double>> ray_dirs){
 vector<vector<vector<double>>> precompute_healpix_geometry(int nside){
     int npix = nside2npix(nside);
     Healpix_Base base(nside, RING, SET_NSIDE);  
-    vector<vector<double>> pix_centers(npix); 
-    vector<vector<vector<double>>> pix_rays(npix); 
-    vector<vector<vector<double>>> pix_side_normals(npix); 
-    vector<vector<vector<double>>> actual_res(npix); 
+    vector<vector<double>> pix_centers(npix, vector<double>(3, 0.0)); 
+    vector<vector<vector<double>>> pix_rays(npix, vector<vector<double>>(4, vector<double>(3,0.0))); 
+    vector<vector<vector<double>>> pix_side_normals(npix, vector<vector<double>>(4, vector<double>(3, 0.0))); 
+    vector<vector<vector<double>>> actual_res(npix, vector<vector<double>>(9, vector<double>(3, 0.0))); 
     for(int i = 0; i < npix; i++){
-        pix_centers[i] = vector<double>(3); 
-        pix_rays[i] = vector<vector<double>>(4); 
-        pix_side_normals[i] = vector<vector<double>>(4); 
-        actual_res[i] = vector<vector<double>>(9);
-        for(int j = 0; j < 4; j++){
-            pix_rays[i][j] = vector<double>(3); 
-            pix_side_normals[i][j] = vector<double>(3);
-        }
-        for(int j = 0; j < 9; j++)
-            actual_res[i][j] = vector<double>(3); 
         double center[3]; 
         pix2vec_ring(nside, i, center); 
         vector<double> center_vec = {center[0], center[1], center[2]};
@@ -542,9 +512,7 @@ bool cube_fully_inside_cone(vector<vector<double>> corners, vector<vector<double
 
 //function to classify if a cube is entirely outside a cone 
 bool cube_fully_outside_cone(vector<vector<double>> corners, vector<vector<double>> face_normals, float tol){
-    vector<vector<double>> vals(8); 
-    for(int i = 0; i < 8; i++)
-        vals[i] = vector<double>(4); 
+    vector<vector<double>> vals(8, vector<double>(4, 0.0)); 
     for(int i = 0; i < 8; i++)
         for(int j = 0; j < 4; j++){
             double res = 0.0; 
@@ -566,11 +534,9 @@ bool cube_fully_outside_cone(vector<vector<double>> corners, vector<vector<doubl
 //function that classifies all pixels and returns if a pixel is fully inside, fully outside, or partly inside a zone
 //the partly inside zones will need more work to calculate the fraction of the volume which intersects the cone 
 vector<vector<bool>> classify_pixels_for_zone(vector<vector<double>> zone_corners, vector<vector<vector<double>>> cand_side_normals, float tol){
-    vector<vector<vector<double>>> vals(cand_side_normals.size()); 
+    vector<vector<vector<double>>> vals(cand_side_normals.size(), vector<vector<double>>(8,vector<double>(4,0.0))); 
     for(int i = 0; i < cand_side_normals.size(); i++){
-        vals[i] = vector<vector<double>>(8); 
         for(int j = 0; j < 8; j++){ 
-            vals[i][j] = vector<double>(4); 
             for(int k = 0; k < 4; k++){
                 double res = 0.0; 
                 for(int l = 0; l < 3; l++){
@@ -580,9 +546,7 @@ vector<vector<bool>> classify_pixels_for_zone(vector<vector<double>> zone_corner
                 }
         }
     }
-    vector<vector<bool>> res(3); //0th axis: 0 = full_inside, 1 = full_outside, 2 = need_exact
-    for(int i = 0; i < 3; i++)
-        res[i] = vector<bool>(cand_side_normals.size()); 
+    vector<vector<bool>> res(3, vector<bool>(cand_side_normals.size(), 0.0)); //0th axis: 0 = full_inside, 1 = full_outside, 2 = need_exact
     for(int i = 0; i < cand_side_normals.size(); i++){ 
         res[0][i] = true;//check for fully inside  
         res[1][i] = false; //check for fully outside
@@ -634,15 +598,11 @@ vector<bool> points_in_cone(vector<vector<double>> pts, vector<vector<double>> s
 
 //function to return the points where a line intersects a plane   
 pair<vector<vector<vector<double>>>, vector<vector<bool>>> segment_plane_intersections_batch(vector<vector<double>> p0, vector<vector<double>> p1, vector<vector<double>> plane_normals, float tol){
-    vector<vector<double>> d(p1.size());
-    vector<vector<double>> denom(d.size()); 
-    vector<vector<double>> numer(d.size()); 
-    vector<vector<vector<double>>> pts(d.size()); 
+    vector<vector<double>> d(p1.size(),vector<double>(3, 0.0));
+    vector<vector<double>> denom(d.size(), vector<double>(plane_normals.size(), 0.0)); 
+    vector<vector<double>> numer(d.size(), vector<double>(plane_normals.size(), 0.0)); 
+    vector<vector<vector<double>>> pts(d.size(), vector<vector<double>>(plane_normals.size())); 
     for(int i = 0; i < d.size(); i++){
-        denom[i] = vector<double>(plane_normals.size());
-        numer[i] = vector<double>(plane_normals.size());
-        d[i] = vector<double>(3); 
-        pts[i] = vector<vector<double>>(plane_normals.size());
         for(int j = 0; j < 3; j++){
             d[i][j] = p1[i][j] - p0[i][j]; //displacement vector 
         }
@@ -661,13 +621,10 @@ pair<vector<vector<vector<double>>>, vector<vector<bool>>> segment_plane_interse
             numer[i][j] = numer_res; 
         }
     }
-    vector<vector<bool>> valid(denom.size());  
-    vector<vector<double>> t(denom.size()); 
+    vector<vector<bool>> valid(denom.size(), vector<bool>(denom[0].size(),true));  
+    vector<vector<double>> t(denom.size(), vector<double>(denom[0].size(), 0.0)); 
     for(int i = 0; i < denom.size(); i++){
-        valid[i] = vector<bool>(denom[0].size());
-        t[i] = vector<double>(denom[0].size());
         for(int j = 0; j < denom[0].size(); j++){
-            t[i][j] = 0.0; 
             if(abs(denom[i][j]) > tol){
                 valid[i][j] = true; //skip points that blow up from small denominator 
                 t[i][j] = numer[i][j] / denom[i][j];  
@@ -690,18 +647,13 @@ pair<vector<vector<vector<double>>>, vector<vector<bool>>> segment_plane_interse
 
 //function that returns the points where a ray from healpix zone intersects a plane 
 pair<vector<vector<vector<double>>>, vector<vector<bool>>> ray_plane_intersections_batch(vector<vector<double>> ray_dirs, vector<vector<double>> face_normals, vector<double> face_c, float tol){
-    vector<vector<double>> denom(ray_dirs.size());
+    vector<vector<double>> denom(ray_dirs.size(), vector<double>(face_normals[0].size(), 0.0));
     vector<double> numer(face_normals[0].size());
-    vector<vector<double>> t(ray_dirs.size());
-    vector<vector<bool>> valid(ray_dirs.size()); 
-    vector<vector<vector<double>>> pts(ray_dirs.size()); 
+    vector<vector<double>> t(ray_dirs.size(), vector<double>(face_normals[0].size(),0.0));
+    vector<vector<bool>> valid(ray_dirs.size(), vector<bool>(face_normals[0].size(), true)); 
+    vector<vector<vector<double>>> pts(ray_dirs.size(), vector<vector<double>>(face_normals[0].size(), vector<double>(3, 0.0))); 
     for(int i = 0; i < ray_dirs.size(); i++){
-        denom[i] = vector<double>(face_normals[0].size()); 
-        t[i] = vector<double>(face_normals[0].size());
-        valid[i] = vector<bool>(face_normals[0].size()); 
-        pts[i] = vector<vector<double>>(face_normals[0].size()); 
         for(int j = 0; j < face_normals[0].size(); j++){
-            pts[i][j] = vector<double>(3); 
             double res = 0.0; 
             for(int k = 0; k < 3; k++)
                 res += ray_dirs[i][k]*face_normals[k][j]; //ray_dirs dot inward cone face normal 
@@ -735,10 +687,9 @@ vector<vector<double>> unique_points(vector<vector<double>> pts, float tol){
         return pts; 
     }
     vector<vector<double>> unique; 
-    vector<vector<long>> key(pts.size()); 
+    vector<vector<long>> key(pts.size(), vector<long>(pts[0].size(), 0.0)); 
     //the key into the map object to check for duplicate points will be the point itself
     for(int i = 0; i < pts.size(); i++){
-        key[i] = vector<long>(pts[0].size()); 
         for(int j = 0; j < pts[0].size(); j++){
             key[i][j] = lround(pts[i][j]/tol); 
         }
