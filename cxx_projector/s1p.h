@@ -157,8 +157,10 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
     }
    int debug_ind = 0;
    //loop over zones, calculate intersections, fill output maps
+   std::cout << "Projection Start" << std::endl;
+   #pragma omp parallel for 
    for(int izone = 0; izone < xyz[0].size(); izone++){
-       cout << "izone " << izone << " " << xyz[0].size() << endl;
+       //cout << "izone " << izone << " " << xyz[0].size() << endl;
        if(mask[izone]==false){
            continue;
         }
@@ -232,13 +234,14 @@ vector<Healpix_Map<double>> project(vector<double> cube, vector<vector<double>> 
             }
         }
     }
-    ofstream outfile(filename); 
-    for(int i = 0; i < 12*NSIDE*NSIDE; i++){
-        outfile << output[i] << endl;
-    }
-    outfile.close();
+    std::cout << "done with zone loop" << std::endl;
+    //ofstream outfile(filename); 
+    //for(int i = 0; i < 12*NSIDE*NSIDE; i++){
+     //   outfile << output[i] << endl;
+    //}
+    //outfile.close();
     //fill vector of healpix maps for return
-    vector<Healpix_Map<double>> out_maps(2); 
+    vector<Healpix_Map<double>> out_maps; 
     out_maps.push_back(output); 
     out_maps.push_back(counts);
     return out_maps;
@@ -686,7 +689,8 @@ vector<vector<double>> unique_points(vector<vector<double>> pts, float tol){
     if(pts.size() == 0){
         return pts; 
     }
-    vector<vector<double>> unique; 
+    vector<vector<double>> unique;
+    unique.reserve(100); 
     vector<vector<long>> key(pts.size(), vector<long>(pts[0].size(), 0.0)); 
     //the key into the map object to check for duplicate points will be the point itself
     for(int i = 0; i < pts.size(); i++){
@@ -696,6 +700,8 @@ vector<vector<double>> unique_points(vector<vector<double>> pts, float tol){
     }
     vector<vector<long>> unique_rows; 
     vector<int> return_index; 
+    unique_rows.reserve(100); 
+    return_index.reserve(100); 
 
     map<vector<long>, int> seen_rows; 
     
@@ -719,7 +725,8 @@ vector<vector<double>> unique_points(vector<vector<double>> pts, float tol){
 
 //function to precompute where cube zones and pixel rays intersect 
 vector<vector<double>> cube_cone_intersection_vertices_precomputed(vector<vector<double>> corners, vector<vector<double>> edge_p0, vector<vector<double>> edge_p1, vector<vector<double>> face_normals, vector<double> face_c, vector<vector<double>> ray_dirs, vector<vector<double>> side_normals, float tol){
-   vector<vector<double>> pts_list; 
+   vector<vector<double>> pts_list;
+   pts_list.reserve(100); 
    //1) cube corners inside cone 
    vector<bool> mask_corners = points_in_cone(corners, side_normals, tol = tol);
    for(int i = 0; i < mask_corners.size(); i++) 
@@ -730,7 +737,8 @@ vector<vector<double>> cube_cone_intersection_vertices_precomputed(vector<vector
        pts_list.push_back({0.0, 0.0, 0.0});
    //3) cube edge/cone side plane intersections
    pair<vector<vector<vector<double>>>, vector<vector<bool>>> seg_res = segment_plane_intersections_batch(edge_p0, edge_p1, side_normals, tol=tol);  
-   vector<vector<double>> cand; 
+   vector<vector<double>> cand;
+   cand.reserve(100); 
    for(int i = 0; i < seg_res.second.size(); i++) 
        for(int j = 0; j < seg_res.second[0].size(); j++){
            //fill array with points where points intersect edge of zone 
